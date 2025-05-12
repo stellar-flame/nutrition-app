@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { SafeAreaView, View, Text, TextInput, Button, FlatList, StyleSheet, Alert } from 'react-native';
+import HamburgerMenu from './components/HamburgerMenu';
 
 // Placeholder for user authentication state
 const mockUser = {
@@ -22,6 +23,98 @@ export default function App() {
   const [meals, setMeals] = useState<MealEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [clarification, setClarification] = useState('');
+
+  const [userProfile, setUserProfile] = useState({
+    firstName: '',
+    lastName: '',
+    dateOfBirth: '',
+    weight: '',
+    height: '',
+  });
+
+  const [nutritionNeeds, setNutritionNeeds] = useState({
+    calories: 0,
+    protein: 0,
+    fat: 0,
+    carbs: 0,
+  });
+
+  useEffect(() => {
+    fetchMealsFromBackend();
+    fetchUserProfile();
+    fetchNutritionNeeds();
+  }, []);
+
+  const fetchUserProfile = async () => {
+    try {
+      const response = await fetch(`http://localhost:8000/users/1`); // Using user ID 1 for demo
+      if (!response.ok) {
+        throw new Error('Failed to fetch user profile');
+      }
+      const data = await response.json();
+      setUserProfile({
+        firstName: data.first_name,
+        lastName: data.last_name,
+        dateOfBirth: data.date_of_birth,
+        weight: data.weight.toString(),
+        height: data.height.toString(),
+      });
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+    }
+  };
+
+  const fetchNutritionNeeds = async () => {
+    try {
+      const response = await fetch(`http://localhost:8000/users/1/nutrition-needs`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch nutrition needs');
+      }
+      const data = await response.json();
+      setNutritionNeeds({
+        calories: data.calories,
+        protein: data.protein,
+        fat: data.fat,
+        carbs: data.carbs,
+      });
+    } catch (error) {
+      console.error('Error fetching nutrition needs:', error);
+    }
+  };
+
+  const saveUserProfile = async (profile: any) => {
+    try {
+      const response = await fetch('http://localhost:8000/users/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          first_name: profile.firstName,
+          last_name: profile.lastName,
+          date_of_birth: profile.dateOfBirth,
+          weight: parseFloat(profile.weight),
+          height: parseFloat(profile.height),
+        }),
+      });
+      if (!response.ok) {
+        throw new Error('Failed to save user profile');
+      }
+      const data = await response.json();
+      setUserProfile({
+        firstName: data.first_name,
+        lastName: data.last_name,
+        dateOfBirth: data.date_of_birth,
+        weight: data.weight.toString(),
+        height: data.height.toString(),
+      });
+      Alert.alert('Success', 'Profile saved successfully');
+      fetchNutritionNeeds(); // Refresh nutrition needs after profile update
+    } catch (error) {
+      console.error('Error saving user profile:', error);
+      Alert.alert('Error', 'Failed to save profile');
+    }
+  };
 
   useEffect(() => {
     fetchMealsFromBackend();
@@ -126,24 +219,41 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <HamburgerMenu userProfile={userProfile} onSave={saveUserProfile} />
       <Text style={styles.title}>Health App - Calorie Tracker</Text>
 
       <View style={styles.nutritionTable}>
         <View style={styles.nutritionRow}>
-          <Text style={styles.nutritionLabel}>Calories</Text>
-          <Text style={styles.nutritionValue}>{totals.calories.toFixed(0)}</Text>
+          <Text style={styles.nutritionLabel}>
+            Calories {totals.calories.toFixed(0)}/{nutritionNeeds.calories}
+          </Text>
+          <Text style={[styles.nutritionValue, styles.remaining]}>
+            {Math.max(nutritionNeeds.calories - totals.calories, 0)}
+          </Text>
         </View>
         <View style={styles.nutritionRow}>
-          <Text style={styles.nutritionLabel}>Protein (g)</Text>
-          <Text style={styles.nutritionValue}>{totals.protein.toFixed(0)}</Text>
+          <Text style={styles.nutritionLabel}>
+            Protein (g) {totals.protein.toFixed(0)}/{nutritionNeeds.protein}
+          </Text>
+          <Text style={[styles.nutritionValue, styles.remaining]}>
+            {Math.max(nutritionNeeds.protein - totals.protein, 0)}
+          </Text>
         </View>
         <View style={styles.nutritionRow}>
-          <Text style={styles.nutritionLabel}>Carbs (g)</Text>
-          <Text style={styles.nutritionValue}>{totals.carbs.toFixed(0)}</Text>
+          <Text style={styles.nutritionLabel}>
+            Carbs (g) {totals.carbs.toFixed(0)}/{nutritionNeeds.carbs}
+          </Text>
+          <Text style={[styles.nutritionValue, styles.remaining]}>
+            {Math.max(nutritionNeeds.carbs - totals.carbs, 0)}
+          </Text>
         </View>
         <View style={styles.nutritionRow}>
-          <Text style={styles.nutritionLabel}>Fat (g)</Text>
-          <Text style={styles.nutritionValue}>{totals.fat.toFixed(0)}</Text>
+          <Text style={styles.nutritionLabel}>
+            Fat (g) {totals.fat.toFixed(0)}/{nutritionNeeds.fat}
+          </Text>
+          <Text style={[styles.nutritionValue, styles.remaining]}>
+            {Math.max(nutritionNeeds.fat - totals.fat, 0)}
+          </Text>
         </View>
         <View style={styles.nutritionRow}>
           <Text style={styles.nutritionLabel}>Sugar (g)</Text>
@@ -191,6 +301,7 @@ const styles = StyleSheet.create({
   nutritionRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
   nutritionLabel: { fontSize: 16, fontWeight: '600' },
   nutritionValue: { fontSize: 16 },
+  remaining: { fontSize: 16, color: 'red' },
   inputContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   input: { flex: 1, borderColor: '#ccc', borderWidth: 1, borderRadius: 4, padding: 8, marginRight: 8 },
   mealItem: { padding: 12, borderBottomColor: '#eee', borderBottomWidth: 1 },

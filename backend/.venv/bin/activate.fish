@@ -1,5 +1,6 @@
 # This file must be used with "source <venv>/bin/activate.fish" *from fish*
 # (https://fishshell.com/); you cannot run it directly.
+function _old_fish_prompt; end;
 
 function deactivate  -d "Exit virtual environment and return to normal shell environment"
     # reset old environment variables
@@ -17,6 +18,7 @@ function deactivate  -d "Exit virtual environment and return to normal shell env
         set -e _OLD_FISH_PROMPT_OVERRIDE
         functions -c _old_fish_prompt fish_prompt
         functions -e _old_fish_prompt
+
     end
 
     set -e VIRTUAL_ENV
@@ -45,7 +47,7 @@ if test -z "$VIRTUAL_ENV_DISABLE_PROMPT"
 
     # Save the current fish_prompt function as the function _old_fish_prompt.
     functions -c fish_prompt _old_fish_prompt
-
+    
     # With the original prompt function renamed, we can override with our own.
     function fish_prompt
         # Save the return status of the last command.
@@ -57,7 +59,9 @@ if test -z "$VIRTUAL_ENV_DISABLE_PROMPT"
         # Restore the return status of the previous command.
         echo "exit $old_status" | .
         # Output the original/"old" prompt.
-        _old_fish_prompt
+        if functions -q _old_fish_prompt
+            _old_fish_prompt
+        end
     end
 
     set -gx _OLD_FISH_PROMPT_OVERRIDE "$VIRTUAL_ENV"

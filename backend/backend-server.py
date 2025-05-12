@@ -1,8 +1,12 @@
 from fastapi import FastAPI, HTTPException, Path
+from math import floor
+import datetime as dt
 from pydantic import BaseModel
 from typing import List, Optional, Union
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
+from langchain_community.chat_models import ChatOpenAI
+from langchain.schema import HumanMessage
 import os
 from dotenv import load_dotenv
 import sqlite3
@@ -49,6 +53,16 @@ def init_db():
             timestamp TEXT NOT NULL
         )
     """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            first_name TEXT NOT NULL,
+            last_name TEXT NOT NULL,
+            date_of_birth TEXT NOT NULL,
+            weight REAL NOT NULL,
+            height REAL NOT NULL
+        )
+    """)
     conn.commit()
     conn.close()
 
@@ -67,6 +81,16 @@ class ChatRequest(BaseModel):
     temperature: Optional[float] = 0
     max_tokens: Optional[int] = 150
 
+class UserProfile(BaseModel):
+    first_name: str
+    last_name: str
+    date_of_birth: str  # ISO format date string
+    weight: float
+    height: float
+
+class UserProfileResponse(UserProfile):
+    id: int
+
 class ChatResponse(BaseModel):
     meal: Optional[dict] = None
     clarification: Optional[str] = None
@@ -80,17 +104,31 @@ def extract_number(value):
             return float(match.group())
     return 0
 
+def calculate_bmr(weight_kg: float, height_cm: float, age: int, sex: str = "male") -> int:
+    """
+    Calculate Basal Metabolic Rate (BMR) using Mifflin-St Jeor Equation.
+    sex: "male" or "female"
+    Returns calories per day.
+    """
+    if sex.lower() == "male":
+        bmr = 10 * weight_kg + 6.25 * height_cm - 5 * age + 5
+    else:
+        bmr = 10 * weight_kg + 6.25 * height_cm - 5 * age - 161
+    return floor(bmr)
+
+def calculate_age(dob_str: str) -> int:
+    dob = dt.datetime.strptime(dob_str, "%Y-%m-%d").date()
+    today = dt.date.today()
+    age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+    return age
+
 @app.post("/openai/chat", response_model=ChatResponse)
 async def openai_chat(request: ChatRequest):
     if not OPENAI_API_KEY:
         raise HTTPException(status_code=500, detail="OpenAI API key not configured")
 
-    headers = {
-        "Authorization": f"Bearer {OPENAI_API_KEY}",
-        "Content-Type": "application/json"
-    }
+    chat = ChatOpenAI(model_name=request.model, temperature=request.temperature, max_tokens=request.max_tokens)
 
-    # Build prompt messages here using description
     prompt_content = (
         "Extract the calories, protein (g), carbs (g), fat (g), and sugar (g) from this food description: \""
         + request.description
@@ -98,27 +136,11 @@ async def openai_chat(request: ChatRequest):
         + "If the item is a branded product, estimate values based on what you know about that product. If it's unknown, estimate based on a similar generic food. "
         + "If you cannot find suitable values, return a message telling the user what additional information you need. Do not include any explanation."
     )
-    messages = [{"role": "user", "content": prompt_content}]
 
-    payload = {
-        "model": request.model,
-        "messages": messages,
-        "temperature": request.temperature,
-        "max_tokens": request.max_tokens,
-    }
-
-    async with httpx.AsyncClient() as client:
-        response = await client.post("https://api.openai.com/v1/chat/completions", json=payload, headers=headers)
-
-    if response.status_code != 200:
-        raise HTTPException(status_code=response.status_code, detail=response.text)
-
-    data = response.json()
-    print("Raw OpenAI response data:", data)
-    content = data['choices'][0]['message']['content'].strip()
-
-    # Try to parse nutritional info from content
     try:
+        response = chat([HumanMessage(content=prompt_content)])
+        content = response.content.strip()
+
         nutrition_raw = json.loads(content)
         # Check if response is clarification message
         if isinstance(nutrition_raw, dict) and "message" in nutrition_raw:
@@ -192,6 +214,66 @@ def get_meals(user_id: str = Path(..., description="User ID to fetch meals for")
             "timestamp": row["timestamp"],
         })
     return {"meals": meals}
+
+@app.get("/users/{user_id}/nutrition-needs")
+def get_nutrition_needs(user_id: int = Path(..., description="User ID to fetch nutrition needs for")):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if row is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    age = calculate_age(row["date_of_birth"])
+    # For simplicity, assume male sex; you can extend UserProfile to include sex if needed
+    bmr = calculate_bmr(row["weight"], row["height"], age, sex="male")
+
+    # For now, assume sedentary activity level multiplier 1.2
+    daily_calories = floor(bmr * 1.2)
+
+    # Rough macronutrient distribution (grams)
+    protein_g = floor(row["weight"] * 1.2)  # 1.2g protein per kg body weight
+    fat_g = floor((daily_calories * 0.25) / 9)  # 25% calories from fat, 9 cal/g fat
+    carbs_g = floor((daily_calories - (protein_g * 4 + fat_g * 9)) / 4)  # Remaining calories from carbs, 4 cal/g carbs
+
+    return {
+        "calories": daily_calories,
+        "protein": protein_g,
+        "fat": fat_g,
+        "carbs": carbs_g,
+    }
+
+@app.post("/users/", response_model=UserProfileResponse)
+def create_user_profile(user: UserProfile):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO users (first_name, last_name, date_of_birth, weight, height)
+        VALUES (?, ?, ?, ?, ?)
+    """, (user.first_name, user.last_name, user.date_of_birth, user.weight, user.height))
+    conn.commit()
+    user_id = cursor.lastrowid
+    conn.close()
+    return UserProfileResponse(id=user_id, **user.dict())
+
+@app.get("/users/{user_id}", response_model=UserProfileResponse)
+def get_user_profile(user_id: int = Path(..., description="User ID to fetch profile for")):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+    if row is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return UserProfileResponse(
+        id=row["id"],
+        first_name=row["first_name"],
+        last_name=row["last_name"],
+        date_of_birth=row["date_of_birth"],
+        weight=row["weight"],
+        height=row["height"]
+    )
 
 from fastapi import Response
 
