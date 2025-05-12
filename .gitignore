@@ -39,3 +39,6 @@ yarn-error.*
 
 # environ
 .env
+
+#db
+*.db
