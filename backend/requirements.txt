@@ -2,3 +2,6 @@ fastapi
 uvicorn
 httpx
 python-dotenv
+langchain
+langchain_community
+openai
