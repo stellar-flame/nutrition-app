@@ -37,6 +37,7 @@ export default function App() {
     protein: 0,
     fat: 0,
     carbs: 0,
+    sugar: 0,
   });
 
   useEffect(() => {
@@ -71,11 +72,13 @@ export default function App() {
         throw new Error('Failed to fetch nutrition needs');
       }
       const data = await response.json();
+      console.log(data)
       setNutritionNeeds({
         calories: data.calories,
         protein: data.protein,
         fat: data.fat,
         carbs: data.carbs,
+        sugar: data.sugar,
       });
     } catch (error) {
       console.error('Error fetching nutrition needs:', error);
@@ -224,40 +227,57 @@ export default function App() {
 
       <View style={styles.nutritionTable}>
         <View style={styles.nutritionRow}>
-          <Text style={styles.nutritionLabel}>
-            Calories {totals.calories.toFixed(0)}/{nutritionNeeds.calories}
-          </Text>
-          <Text style={[styles.nutritionValue, styles.remaining]}>
-            {Math.max(nutritionNeeds.calories - totals.calories, 0)}
-          </Text>
+          <Text style={styles.nutritionLabel}>Calories</Text>
+          <View style={styles.nutritionValuesContainer}>
+            <Text style={[styles.nutritionValue, styles.nutritionValueColumn]}>
+              {totals.calories.toFixed(0)}/{nutritionNeeds.calories}
+            </Text>
+            <Text style={[totals.calories < nutritionNeeds.calories ? styles.pos_remaining : styles.neg_remaining, styles.nutritionValueColumn]}>
+              {Math.round(nutritionNeeds.calories - totals.calories)}
+            </Text>
+          </View>
         </View>
         <View style={styles.nutritionRow}>
-          <Text style={styles.nutritionLabel}>
-            Protein (g) {totals.protein.toFixed(0)}/{nutritionNeeds.protein}
-          </Text>
-          <Text style={[styles.nutritionValue, styles.remaining]}>
-            {Math.max(nutritionNeeds.protein - totals.protein, 0)}
-          </Text>
+          <Text style={styles.nutritionLabel}>Protein (g)</Text>
+          <View style={styles.nutritionValuesContainer}>
+            <Text style={[styles.nutritionValue, styles.nutritionValueColumn]}>
+              {totals.protein.toFixed(0)}/{nutritionNeeds.protein}
+            </Text>
+            <Text style={[totals.protein < nutritionNeeds.protein ? styles.pos_remaining : styles.neg_remaining, styles.nutritionValueColumn]}>
+              {Math.round(nutritionNeeds.protein - totals.protein)}
+            </Text>
+          </View>
         </View>
         <View style={styles.nutritionRow}>
-          <Text style={styles.nutritionLabel}>
-            Carbs (g) {totals.carbs.toFixed(0)}/{nutritionNeeds.carbs}
-          </Text>
-          <Text style={[styles.nutritionValue, styles.remaining]}>
-            {Math.max(nutritionNeeds.carbs - totals.carbs, 0)}
-          </Text>
+          <Text style={styles.nutritionLabel}>Carbs (g)</Text>
+          <View style={styles.nutritionValuesContainer}>
+            <Text style={[styles.nutritionValue, styles.nutritionValueColumn]}>
+              {totals.carbs.toFixed(0)}/{nutritionNeeds.carbs}
+            </Text>
+            <Text style={[totals.carbs < nutritionNeeds.carbs ? styles.pos_remaining : styles.neg_remaining, styles.nutritionValueColumn]}>
+              {Math.round(nutritionNeeds.carbs - totals.carbs)}
+            </Text>
+          </View>
         </View>
         <View style={styles.nutritionRow}>
-          <Text style={styles.nutritionLabel}>
-            Fat (g) {totals.fat.toFixed(0)}/{nutritionNeeds.fat}
-          </Text>
-          <Text style={[styles.nutritionValue, styles.remaining]}>
-            {Math.max(nutritionNeeds.fat - totals.fat, 0)}
-          </Text>
+          <Text style={styles.nutritionLabel}>Fat (g)</Text>
+          <View style={styles.nutritionValuesContainer}>
+            <Text style={[styles.nutritionValue, styles.nutritionValueColumn]}>
+              {totals.fat.toFixed(0)}/{nutritionNeeds.fat}
+            </Text>
+            <Text style={[totals.fat < nutritionNeeds.fat ? styles.pos_remaining : styles.neg_remaining, styles.nutritionValueColumn]}>
+              {Math.round(nutritionNeeds.fat - totals.fat)}
+            </Text>
+          </View>
         </View>
         <View style={styles.nutritionRow}>
           <Text style={styles.nutritionLabel}>Sugar (g)</Text>
-          <Text style={styles.nutritionValue}>{totals.sugar.toFixed(0)}</Text>
+          <View style={styles.nutritionValuesContainer}>
+            <Text style={[styles.nutritionValue, styles.nutritionValueColumn]}>{totals.sugar.toFixed(0)}</Text>
+            <Text style={[totals.sugar < nutritionNeeds.sugar ? styles.pos_remaining : styles.neg_remaining, styles.nutritionValueColumn]}>
+              {Math.round(nutritionNeeds.sugar - totals.sugar)}
+            </Text>
+          </View>
         </View>
       </View>
 
@@ -301,7 +321,10 @@ const styles = StyleSheet.create({
   nutritionRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
   nutritionLabel: { fontSize: 16, fontWeight: '600' },
   nutritionValue: { fontSize: 16 },
-  remaining: { fontSize: 16, color: 'red' },
+  nutritionValuesContainer: { flexDirection: 'row', justifyContent: 'flex-end', width: 160 },
+  nutritionValueColumn: { flex: 1, textAlign: 'right' },
+  neg_remaining: { fontSize: 16, color: 'red' },
+  pos_remaining: { fontSize: 16, color: 'green' },
   inputContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   input: { flex: 1, borderColor: '#ccc', borderWidth: 1, borderRadius: 4, padding: 8, marginRight: 8 },
   mealItem: { padding: 12, borderBottomColor: '#eee', borderBottomWidth: 1 },

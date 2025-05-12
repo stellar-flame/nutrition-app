@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from typing import List, Optional, Union
 from fastapi.middleware.cors import CORSMiddleware
 import httpx
-from langchain_community.chat_models import ChatOpenAI
+from langchain_openai import ChatOpenAI
 from langchain.schema import HumanMessage
 import os
 from dotenv import load_dotenv
@@ -138,7 +138,7 @@ async def openai_chat(request: ChatRequest):
     )
 
     try:
-        response = chat([HumanMessage(content=prompt_content)])
+        response = chat.invoke([HumanMessage(content=prompt_content)])
         content = response.content.strip()
 
         nutrition_raw = json.loads(content)
@@ -236,12 +236,14 @@ def get_nutrition_needs(user_id: int = Path(..., description="User ID to fetch n
     protein_g = floor(row["weight"] * 1.2)  # 1.2g protein per kg body weight
     fat_g = floor((daily_calories * 0.25) / 9)  # 25% calories from fat, 9 cal/g fat
     carbs_g = floor((daily_calories - (protein_g * 4 + fat_g * 9)) / 4)  # Remaining calories from carbs, 4 cal/g carbs
+    sugar_g = floor(carbs_g * 0.1)  # Assume 10% of carbs as sugar
 
     return {
         "calories": daily_calories,
         "protein": protein_g,
         "fat": fat_g,
         "carbs": carbs_g,
+        "sugar": sugar_g,
     }
 
 @app.post("/users/", response_model=UserProfileResponse)
