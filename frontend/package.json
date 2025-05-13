@@ -19,12 +19,14 @@
     "node-fetch": "^2.7.0",
     "react": "19.0.0",
     "react-native": "0.79.2",
+    "react-native-gesture-handler": "^2.25.0",
     "react-native-voice": "^0.3.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@types/react": "~19.0.10",
-    "typescript": "~5.8.3"
+    "typescript": "~5.8.3",
+    "@react-native-community/cli": "latest"
   },
   "private": true
 }

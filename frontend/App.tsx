@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { SafeAreaView, View, Text, TextInput, Button, FlatList, StyleSheet, Alert } from 'react-native';
+import { GestureHandlerRootView, GestureDetector, Gesture } from 'react-native-gesture-handler';
 import HamburgerMenu from './components/HamburgerMenu';
 
-// Placeholder for user authentication state
-const mockUser = {
-  id: 'user123',
-  email: 'user@example.com',
-};
+// const mockUser = {
+//   id: 'user123',
+//   email: 'user@example.com',
+// };
 
 interface MealEntry {
   id: string;
@@ -24,6 +24,15 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [clarification, setClarification] = useState('');
 
+  const isToday = (date: Date): boolean => {
+    const today = new Date();
+    return (
+      date.getDate() === today.getDate() &&
+      date.getMonth() === today.getMonth() &&
+      date.getFullYear() === today.getFullYear()
+    );
+  };
+
   const [userProfile, setUserProfile] = useState({
     firstName: '',
     lastName: '',
@@ -40,15 +49,22 @@ export default function App() {
     sugar: 0,
   });
 
+  const [currentDate, setCurrentDate] = useState(new Date());
+
   useEffect(() => {
     fetchMealsFromBackend();
     fetchUserProfile();
     fetchNutritionNeeds();
-  }, []);
+  }, [currentDate]);
+
+  // Refetch functions
+  // Line 75: fetchMealsFromBackend
+  // Line 79: fetchUserProfile
+  // Line 80: fetchNutritionNeeds
 
   const fetchUserProfile = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/users/1`); // Using user ID 1 for demo
+      const response = await fetch(`http://localhost:8000/users/1`);
       if (!response.ok) {
         throw new Error('Failed to fetch user profile');
       }
@@ -72,7 +88,6 @@ export default function App() {
         throw new Error('Failed to fetch nutrition needs');
       }
       const data = await response.json();
-      console.log(data)
       setNutritionNeeds({
         calories: data.calories,
         protein: data.protein,
@@ -85,54 +100,16 @@ export default function App() {
     }
   };
 
-  const saveUserProfile = async (profile: any) => {
-    try {
-      const response = await fetch('http://localhost:8000/users/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          first_name: profile.firstName,
-          last_name: profile.lastName,
-          date_of_birth: profile.dateOfBirth,
-          weight: parseFloat(profile.weight),
-          height: parseFloat(profile.height),
-        }),
-      });
-      if (!response.ok) {
-        throw new Error('Failed to save user profile');
-      }
-      const data = await response.json();
-      setUserProfile({
-        firstName: data.first_name,
-        lastName: data.last_name,
-        dateOfBirth: data.date_of_birth,
-        weight: data.weight.toString(),
-        height: data.height.toString(),
-      });
-      Alert.alert('Success', 'Profile saved successfully');
-      fetchNutritionNeeds(); // Refresh nutrition needs after profile update
-    } catch (error) {
-      console.error('Error saving user profile:', error);
-      Alert.alert('Error', 'Failed to save profile');
-    }
-  };
-
-  useEffect(() => {
-    fetchMealsFromBackend();
-  }, []);
-
-  // Fetch meals from backend server
   const fetchMealsFromBackend = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/meals/${mockUser.id}`);
+      const dateStr = currentDate.toISOString().split('T')[0];
+      console.log(dateStr)
+      const response = await fetch(`http://localhost:8000/meals/1?search_date=${dateStr}`);
       if (!response.ok) {
         throw new Error('Failed to fetch meals from backend');
       }
       const data = await response.json();
       if (data.meals) {
-        // Convert numeric fields to numbers if needed
         const cleanedMeals = data.meals.map((meal: any) => ({
           ...meal,
           calories: Number(meal.calories),
@@ -149,7 +126,6 @@ export default function App() {
     }
   };
 
-  // Call backend server to get nutritional info and save meal
   const fetchNutrition = async (description: string): Promise<any> => {
     setLoading(true);
     try {
@@ -159,7 +135,7 @@ export default function App() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          user_id: mockUser.id,
+          user_id: "1",
           description,
           model: 'gpt-4',
           temperature: 0,
@@ -183,7 +159,6 @@ export default function App() {
     }
   };
 
-  // Add meal entry or handle clarification
   const addMeal = async () => {
     if (!inputText.trim()) return;
     const result = await fetchNutrition(inputText.trim());
@@ -207,6 +182,26 @@ export default function App() {
     }
   };
 
+  const panGesture = Gesture.Pan()
+    .onEnd((event) => {
+      const { translationX } = event;
+      if (translationX > 50) {
+        // Swipe right: previous day
+        setCurrentDate(prev => {
+          const newDate = new Date(prev);
+          newDate.setDate(newDate.getDate() - 1);
+          return newDate;
+        });
+      } else if (translationX < -50) {
+        // Swipe left: next day
+        setCurrentDate(prev => {
+          const newDate = new Date(prev);
+          newDate.setDate(newDate.getDate() + 1);
+          return newDate;
+        });
+      }
+    });
+
   // Calculate totals
   const totals = meals.reduce(
     (acc, meal) => {
@@ -221,101 +216,111 @@ export default function App() {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <HamburgerMenu userProfile={userProfile} onSave={saveUserProfile} />
-      <Text style={styles.title}>Health App - Calorie Tracker</Text>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <GestureDetector gesture={panGesture}>
+        <SafeAreaView style={styles.container}>
+          <HamburgerMenu userProfile={userProfile} onSave={setUserProfile} />
+          <View style={styles.dateNavigationContainer}>
+            <Button title="←" onPress={() => {
+              setCurrentDate(prev => {
+                const newDate = new Date(prev);
+                newDate.setDate(newDate.getDate() - 1);
+                return newDate;
+              });
+            }} />
+            <Text style={isToday(currentDate) ? styles.currentDateHighlight : styles.currentDate}>{currentDate.toDateString()}</Text>
+            <Button title="→" onPress={() => {
+              setCurrentDate(prev => {
+                const newDate = new Date(prev);
+                newDate.setDate(newDate.getDate() + 1);
+                return newDate;
+              });
+            }} />
+          </View>
+          <Text style={styles.title}>Health App - Calorie Tracker</Text>
 
-      <View style={styles.nutritionTable}>
-        <View style={styles.nutritionRow}>
-          <Text style={styles.nutritionLabel}>Calories</Text>
-          <View style={styles.nutritionValuesContainer}>
-            <Text style={[styles.nutritionValue, styles.nutritionValueColumn]}>
-              {totals.calories.toFixed(0)}/{nutritionNeeds.calories}
-            </Text>
-            <Text style={[totals.calories < nutritionNeeds.calories ? styles.pos_remaining : styles.neg_remaining, styles.nutritionValueColumn]}>
-              {Math.round(nutritionNeeds.calories - totals.calories)}
-            </Text>
+          <View style={styles.nutritionTable}>
+            <View style={styles.nutritionRow}>
+              <Text style={styles.nutritionLabel}>Calories</Text>
+              <View style={styles.nutritionValuesContainer}>
+                <Text style={[styles.nutritionValue, styles.nutritionValueColumn]}>
+                  {totals.calories.toFixed(0)}/{nutritionNeeds.calories}
+                </Text>
+                <Text style={[totals.calories < nutritionNeeds.calories ? styles.pos_remaining : styles.neg_remaining, styles.nutritionValueColumn]}>
+                  {Math.round(nutritionNeeds.calories - totals.calories)}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.nutritionRow}>
+              <Text style={styles.nutritionLabel}>Protein (g)</Text>
+              <View style={styles.nutritionValuesContainer}>
+                <Text style={[styles.nutritionValue, styles.nutritionValueColumn]}>
+                  {totals.protein.toFixed(0)}/{nutritionNeeds.protein}
+                </Text>
+                <Text style={[totals.protein < nutritionNeeds.protein ? styles.pos_remaining : styles.neg_remaining, styles.nutritionValueColumn]}>
+                  {Math.round(nutritionNeeds.protein - totals.protein)}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.nutritionRow}>
+              <Text style={styles.nutritionLabel}>Carbs (g)</Text>
+              <View style={styles.nutritionValuesContainer}>
+                <Text style={[styles.nutritionValue, styles.nutritionValueColumn]}>
+                  {totals.carbs.toFixed(0)}/{nutritionNeeds.carbs}
+                </Text>
+                <Text style={[totals.carbs < nutritionNeeds.carbs ? styles.pos_remaining : styles.neg_remaining, styles.nutritionValueColumn]}>
+                  {Math.round(nutritionNeeds.carbs - totals.carbs)}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.nutritionRow}>
+              <Text style={styles.nutritionLabel}>Fat (g)</Text>
+              <View style={styles.nutritionValuesContainer}>
+                <Text style={[styles.nutritionValue, styles.nutritionValueColumn]}>
+                  {totals.fat.toFixed(0)}/{nutritionNeeds.fat}
+                </Text>
+                <Text style={[totals.fat < nutritionNeeds.fat ? styles.pos_remaining : styles.neg_remaining, styles.nutritionValueColumn]}>
+                  {Math.round(nutritionNeeds.fat - totals.fat)}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.nutritionRow}>
+              <Text style={styles.nutritionLabel}>Sugar (g)</Text>
+              <View style={styles.nutritionValuesContainer}>
+                <Text style={[styles.nutritionValue, styles.nutritionValueColumn]}>{totals.sugar.toFixed(0)}</Text>
+                <Text style={[totals.sugar < nutritionNeeds.sugar ? styles.pos_remaining : styles.neg_remaining, styles.nutritionValueColumn]}>
+                  {Math.round(nutritionNeeds.sugar - totals.sugar)}
+                </Text>
+              </View>
+            </View>
           </View>
-        </View>
-        <View style={styles.nutritionRow}>
-          <Text style={styles.nutritionLabel}>Protein (g)</Text>
-          <View style={styles.nutritionValuesContainer}>
-            <Text style={[styles.nutritionValue, styles.nutritionValueColumn]}>
-              {totals.protein.toFixed(0)}/{nutritionNeeds.protein}
-            </Text>
-            <Text style={[totals.protein < nutritionNeeds.protein ? styles.pos_remaining : styles.neg_remaining, styles.nutritionValueColumn]}>
-              {Math.round(nutritionNeeds.protein - totals.protein)}
-            </Text>
-          </View>
-        </View>
-        <View style={styles.nutritionRow}>
-          <Text style={styles.nutritionLabel}>Carbs (g)</Text>
-          <View style={styles.nutritionValuesContainer}>
-            <Text style={[styles.nutritionValue, styles.nutritionValueColumn]}>
-              {totals.carbs.toFixed(0)}/{nutritionNeeds.carbs}
-            </Text>
-            <Text style={[totals.carbs < nutritionNeeds.carbs ? styles.pos_remaining : styles.neg_remaining, styles.nutritionValueColumn]}>
-              {Math.round(nutritionNeeds.carbs - totals.carbs)}
-            </Text>
-          </View>
-        </View>
-        <View style={styles.nutritionRow}>
-          <Text style={styles.nutritionLabel}>Fat (g)</Text>
-          <View style={styles.nutritionValuesContainer}>
-            <Text style={[styles.nutritionValue, styles.nutritionValueColumn]}>
-              {totals.fat.toFixed(0)}/{nutritionNeeds.fat}
-            </Text>
-            <Text style={[totals.fat < nutritionNeeds.fat ? styles.pos_remaining : styles.neg_remaining, styles.nutritionValueColumn]}>
-              {Math.round(nutritionNeeds.fat - totals.fat)}
-            </Text>
-          </View>
-        </View>
-        <View style={styles.nutritionRow}>
-          <Text style={styles.nutritionLabel}>Sugar (g)</Text>
-          <View style={styles.nutritionValuesContainer}>
-            <Text style={[styles.nutritionValue, styles.nutritionValueColumn]}>{totals.sugar.toFixed(0)}</Text>
-            <Text style={[totals.sugar < nutritionNeeds.sugar ? styles.pos_remaining : styles.neg_remaining, styles.nutritionValueColumn]}>
-              {Math.round(nutritionNeeds.sugar - totals.sugar)}
-            </Text>
-          </View>
-        </View>
-      </View>
 
-      <View style={styles.inputContainer}>
-        <TextInput
-          style={styles.input}
-          placeholder="What did you eat?"
-          value={inputText}
-          onChangeText={setInputText}
-          editable={!loading}
-        />
-        <Button title={loading ? 'Loading...' : 'Add'} onPress={addMeal} disabled={loading} />
-      </View>
-      {clarification ? (
-        <View style={styles.clarificationContainer}>
-          <Text style={styles.clarificationText}>{clarification}</Text>
-        </View>
-      ) : null}
-
-      <FlatList
-        data={meals}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
-          <View style={styles.mealItem}>
-            <Text style={styles.mealDescription}>{item.description}</Text>
-            <Text style={styles.mealNutrition}>
-              {item.calories} cal | {item.protein}g P | {item.carbs}g C | {item.fat}g F | {item.sugar}g S
-            </Text>
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.input}
+              placeholder="What did you eat?"
+              value={inputText}
+              onChangeText={setInputText}
+              editable={!loading}
+            />
+            <Button title={loading ? 'Loading...' : 'Add'} onPress={addMeal} disabled={loading} />
           </View>
-        )}
-        ListEmptyComponent={<Text style={styles.emptyText}>No meals added yet.</Text>}
-      />
-    </SafeAreaView>
+          {clarification ? (
+            <View style={styles.clarificationContainer}>
+              <Text style={styles.clarificationText}>{clarification}</Text>
+            </View>
+          ) : null}
+        </SafeAreaView>
+      </GestureDetector>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: '#fff' },
+  dateNavigationContainer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+  currentDate: { fontSize: 18, fontWeight: '600', textAlign: 'center', marginHorizontal: 12 },
+  currentDateHighlight: { fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginHorizontal: 12, color: '#007AFF' },
   title: { fontSize: 24, fontWeight: 'bold', marginBottom: 16, textAlign: 'center' },
   nutritionTable: { marginBottom: 16, borderWidth: 1, borderColor: '#ccc', borderRadius: 4, padding: 8 },
   nutritionRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },

@@ -169,7 +169,7 @@ async def openai_chat(request: ChatRequest):
             nutrition["carbs"],
             nutrition["fat"],
             nutrition["sugar"],
-            datetime.utcnow().isoformat()
+            datetime.utcnow().date().isoformat()
         ))
         conn.commit()
         meal_id = cursor.lastrowid
@@ -192,11 +192,20 @@ async def openai_chat(request: ChatRequest):
         print(f"JSON parsing error: {e}, content: {content}")
         return ChatResponse(clarification=content)
 
+from datetime import date
+
 @app.get("/meals/{user_id}")
-def get_meals(user_id: str = Path(..., description="User ID to fetch meals for")):
+def get_meals(user_id: str = Path(..., description="User ID to fetch meals for"), search_date: str = None):
+    """
+    Get meals for a user, optionally filtered by date (YYYY-MM-DD).
+    Defaults to today's date if no date is provided.
+    """
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM meals WHERE user_id = ? ORDER BY timestamp DESC", (user_id,))
+    print("Search Date: ", search_date)
+    if search_date is None:
+        search_date = date.today().isoformat()
+    cursor.execute("SELECT * FROM meals WHERE user_id = ? AND date(timestamp) = ? ORDER BY timestamp DESC", (user_id, search_date))
     rows = cursor.fetchall()
     conn.close()
 
