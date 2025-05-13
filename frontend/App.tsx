@@ -64,7 +64,7 @@ export default function App() {
 
   const fetchUserProfile = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/users/1`);
+      const response = await fetch(`http://192.168.0.9:8000/users/1`);
       if (!response.ok) {
         throw new Error('Failed to fetch user profile');
       }
@@ -83,7 +83,7 @@ export default function App() {
 
   const fetchNutritionNeeds = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/users/1/nutrition-needs`);
+      const response = await fetch(`http://192.168.0.9:8000/users/1/nutrition-needs`);
       if (!response.ok) {
         throw new Error('Failed to fetch nutrition needs');
       }
@@ -104,7 +104,7 @@ export default function App() {
     try {
       const dateStr = currentDate.toISOString().split('T')[0];
       console.log(dateStr)
-      const response = await fetch(`http://localhost:8000/meals/1?search_date=${dateStr}`);
+      const response = await fetch(`http://192.168.0.9:8000/meals/1?search_date=${dateStr}`);
       if (!response.ok) {
         throw new Error('Failed to fetch meals from backend');
       }
@@ -129,7 +129,7 @@ export default function App() {
   const fetchNutrition = async (description: string): Promise<any> => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/openai/chat', {
+      const response = await fetch('http://192.168.0.9:8000/openai/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -295,6 +295,20 @@ export default function App() {
             </View>
           </View>
 
+          <FlatList
+            data={meals}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={({ item }) => (
+              <View style={styles.mealItem}>
+                <Text style={styles.mealDescription}>{item.description}</Text>
+                <Text style={styles.mealNutrition}>
+                  Calories: {item.calories.toFixed(0)}, Protein: {item.protein?.toFixed(0)}, Carbs: {item.carbs?.toFixed(0)}, Fat: {item.fat?.toFixed(0)}, Sugar: {item.sugar?.toFixed(0)}
+                </Text>
+              </View>
+            )}
+            ListEmptyComponent={<Text style={styles.emptyText}>No meals logged for this date.</Text>}
+          />
+
           <View style={styles.inputContainer}>
             <TextInput
               style={styles.input}
@@ -331,7 +345,7 @@ const styles = StyleSheet.create({
   neg_remaining: { fontSize: 16, color: 'red' },
   pos_remaining: { fontSize: 16, color: 'green' },
   inputContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  input: { flex: 1, borderColor: '#ccc', borderWidth: 1, borderRadius: 4, padding: 8, marginRight: 8 },
+  input: { flex: 1, borderColor: '#ccc', borderWidth: 1, borderRadius: 4, padding: 8, paddingLeft: 12, marginRight: 8 },
   mealItem: { padding: 12, borderBottomColor: '#eee', borderBottomWidth: 1 },
   mealDescription: { fontSize: 16, fontWeight: '500' },
   mealNutrition: { fontSize: 14, color: '#555' },
