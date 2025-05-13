@@ -294,21 +294,6 @@ export default function App() {
               </View>
             </View>
           </View>
-
-          <FlatList
-            data={meals}
-            keyExtractor={(item) => item.id.toString()}
-            renderItem={({ item }) => (
-              <View style={styles.mealItem}>
-                <Text style={styles.mealDescription}>{item.description}</Text>
-                <Text style={styles.mealNutrition}>
-                  Calories: {item.calories.toFixed(0)}, Protein: {item.protein?.toFixed(0)}, Carbs: {item.carbs?.toFixed(0)}, Fat: {item.fat?.toFixed(0)}, Sugar: {item.sugar?.toFixed(0)}
-                </Text>
-              </View>
-            )}
-            ListEmptyComponent={<Text style={styles.emptyText}>No meals logged for this date.</Text>}
-          />
-
           <View style={styles.inputContainer}>
             <TextInput
               style={styles.input}
@@ -323,7 +308,22 @@ export default function App() {
             <View style={styles.clarificationContainer}>
               <Text style={styles.clarificationText}>{clarification}</Text>
             </View>
-          ) : null}
+          ) : null}   
+          <FlatList
+            data={meals}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={({ item }) => (
+              <View style={styles.mealItem}>
+                <Text style={styles.mealDescription}>{item.description}</Text>
+                <Text style={styles.mealNutrition}>
+                  Calories: {item.calories.toFixed(0)}, Protein: {item.protein?.toFixed(0)}, Carbs: {item.carbs?.toFixed(0)}, Fat: {item.fat?.toFixed(0)}, Sugar: {item.sugar?.toFixed(0)}
+                </Text>
+              </View>
+            )}
+            ListEmptyComponent={<Text style={styles.emptyText}>No meals logged for this date.</Text>}
+          />
+
+          
         </SafeAreaView>
       </GestureDetector>
     </GestureHandlerRootView>
