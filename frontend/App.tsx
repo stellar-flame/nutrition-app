@@ -153,12 +153,15 @@ export default function App() {
       
       if (result.message) {
         // Add AI's message to conversation history
+        console.log("Message: " + result.message)
         setConversationHistory(prev => [...prev, `App: ${result.message}`]);
       } else if (result.meal) {
+        console.log("Meal: " + result.message)
         setPendingMeal(result.meal);
         setAwaitingConfirmation(true);
         
         const mealInfo = `App: Found "${result.meal.description}" (${result.meal.calories} cal)`;
+
         setConversationHistory(prev => [...prev, mealInfo]);
       }
     } catch (error) {
@@ -372,6 +375,9 @@ export default function App() {
             <View style={styles.confirmationContainer}>
               <Text style={styles.confirmationText}>
                 {pendingMeal.description}
+              </Text>
+               <Text style={styles.confirmationText}>
+                {pendingMeal.assumptions}
               </Text>
               <Text style={styles.confirmationText}>
                 Calories: {pendingMeal.calories.toFixed(0)}, Protein: {pendingMeal.protein?.toFixed(0)}, 

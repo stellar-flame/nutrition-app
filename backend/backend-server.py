@@ -121,6 +121,7 @@ class MealResponse(BaseModel):
     id: int
     user_id: str
     description: str
+    assumptions: Optional[str] = None
     calories: float
     protein: float
     carbs: float
@@ -181,10 +182,10 @@ async def openai_chat(request: ChatRequest):
             "You are a nutritional assistant. Analyze food descriptions and provide nutritional information. "
             "If you can determine the nutritional information, respond with a JSON object containing: "
             "calories (number), protein (number in grams), carbs (number in grams), fat (number in grams), "
-            "sugar (number in grams), description (string). Do not include units in the numbers, just return "
+            "sugar (number in grams), description (string), assumptions (string). Do not include units in the numbers, just return "
             "the numeric values. Example: {\"calories\": 133, \"protein\": 4, \"carbs\": 25, \"fat\": 1.5, "
-            "\"sugar\": 2, \"description\": \"2 slices of white bread\"}. "
-            "If you need more information, respond with a normal message asking for what you need."
+            "\"sugar\": 2, \"description\": \"2 slices of white bread\", \"assumptions\": \"50g\"}. Keep assumptions to a few words."
+            "If you need more information, respond with a normal message asking for what you need. . Keep any explanation short ans sweet"
         )))
         active_conversations[conversation_id] = conversation
     else:
@@ -218,11 +219,18 @@ async def openai_chat(request: ChatRequest):
         content = response.content.strip()
 
         try:
-            print (content)
-            
-            # Try to parse as nutrition info
-            nutrition_raw = json.loads(content)
-            print (nutrition_raw)
+            # Try to find any JSON-like block in the response
+            print(f"************* {content}")
+            match = re.search(r"(\{.*?\})", content, re.DOTALL)
+            if not match:
+                raise ValueError("No JSON block found")
+
+            # Extract JSON string from match and parse it
+            json_text = match.group(1)
+            nutrition_raw = json.loads(json_text)
+            print(f"************* {nutrition_raw}")
+
+            # Extract nutrition values
             nutrition = {
                 "calories": extract_number(nutrition_raw.get("calories", 0)),
                 "protein": extract_number(nutrition_raw.get("protein", 0)),
@@ -230,36 +238,53 @@ async def openai_chat(request: ChatRequest):
                 "fat": extract_number(nutrition_raw.get("fat", 0)),
                 "sugar": extract_number(nutrition_raw.get("sugar", 0)),
             }
-            description_normalized = nutrition_raw.get("description", request.description)
 
-            # Return nutritional information
+            description_normalized = nutrition_raw.get("description", request.description)
+            assumptions_normalized = nutrition_raw.get("assumptions")
+
+            # Return parsed meal
             return ChatResponse(
                 meal={
-                    "id": None,  # ID will be assigned when actually storing the meal
+                    "id": None,
                     "user_id": request.user_id,
                     "description": description_normalized,
-                    "calories": nutrition.get("calories", 0),
-                    "protein": nutrition.get("protein", 0),
-                    "carbs": nutrition.get("carbs", 0),
-                    "fat": nutrition.get("fat", 0),
-                    "sugar": nutrition.get("sugar", 0),
+                    "assumptions": assumptions_normalized,
+                    "calories": nutrition["calories"],
+                    "protein": nutrition["protein"],
+                    "carbs": nutrition["carbs"],
+                    "fat": nutrition["fat"],
+                    "sugar": nutrition["sugar"],
                     "timestamp": datetime.utcnow().isoformat()
                 },
                 conversation_id=conversation_id
             )
-        except json.JSONDecodeError:
-            # If not JSON, treat as conversation message
-            # If not JSON, treat as conversation message but don't expose raw content
+        except (ValueError, json.JSONDecodeError) as e:
+            # Fallback: treat it as a plain message (not nutrition JSON)
+            print(f"Raw: {content}")
             return ChatResponse(
-                message=response.content,
-                conversation_id=conversation_id
-            )
+                message=content,
+                meal=None,
+            conversation_id=conversation_id
+        )
     except Exception as e:
         print(f"Error processing request: {e}")
         return ChatResponse(
             message="I couldn't process that. Could you try rephrasing?",
             conversation_id=conversation_id
         )
+
+def extract_json_from_chatgpt_response(response_text):
+    # Match content between triple backticks (optionally with `json`)
+    match = re.search(r"(\{.*?\})", response_text, re.DOTALL)
+    if match:
+        try:
+            data = json.loads(match.group(1))
+            return data
+        except json.JSONDecodeError:
+            print("Invalid JSON inside code block.")
+    else:
+        print("No JSON code block found.")
+    return response_text
 
 from datetime import date
 
