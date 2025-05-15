@@ -2,11 +2,11 @@ from fastapi import FastAPI, HTTPException, Path
 from math import floor
 import datetime as dt
 from pydantic import BaseModel
-from typing import List, Optional, Union
+from typing import Optional
 from fastapi.middleware.cors import CORSMiddleware
-import httpx
 from langchain_openai import ChatOpenAI
-from langchain.schema import HumanMessage
+from langchain.schema import SystemMessage, HumanMessage, AIMessage
+from langchain_community.chat_message_histories import ChatMessageHistory
 import os
 from dotenv import load_dotenv
 import sqlite3
@@ -72,11 +72,27 @@ class Message(BaseModel):
     role: str
     content: str
 
+class ConversationState:
+    def __init__(self):
+        self.history = ChatMessageHistory()
+        self.messages = []
+        self.last_activity = datetime.utcnow()
+
+# Store conversations by ID
+active_conversations = {}
+
+# Cleanup old conversations (older than 5 minutes)
+def cleanup_old_conversations():
+    now = datetime.utcnow()
+    for conv_id in list(active_conversations.keys()):
+        if (now - active_conversations[conv_id].last_activity).total_seconds() > 300:
+            del active_conversations[conv_id]
+
 class ChatRequest(BaseModel):
     user_id: str
     description: str
-    # Remove messages from request, prompt will be built in backend
-    # messages: List[Message]
+    conversation_id: Optional[str] = None
+    user_feedback: Optional[str] = None
     model: Optional[str] = "gpt-4"
     temperature: Optional[float] = 0
     max_tokens: Optional[int] = 150
@@ -91,9 +107,32 @@ class UserProfile(BaseModel):
 class UserProfileResponse(UserProfile):
     id: int
 
+class MealCreate(BaseModel):
+    user_id: str
+    description: str
+    calories: float
+    protein: float
+    carbs: float
+    fat: float
+    sugar: float
+    timestamp: Optional[str] = None
+
+class MealResponse(BaseModel):
+    id: int
+    user_id: str
+    description: str
+    calories: float
+    protein: float
+    carbs: float
+    fat: float
+    sugar: float
+    timestamp: str
+
 class ChatResponse(BaseModel):
     meal: Optional[dict] = None
-    clarification: Optional[str] = None
+    message: Optional[str] = None  # Generic message field for any non-meal responses
+    conversation_complete: Optional[bool] = False
+    conversation_id: str
 
 def extract_number(value):
     if isinstance(value, (int, float)):
@@ -128,69 +167,99 @@ async def openai_chat(request: ChatRequest):
         raise HTTPException(status_code=500, detail="OpenAI API key not configured")
 
     chat = ChatOpenAI(model_name=request.model, temperature=request.temperature, max_tokens=request.max_tokens)
-
-    prompt_content = (
-        "Extract the calories, protein (g), carbs (g), fat (g), and sugar (g) from this food description: \""
-        + request.description
-        + "\". If you can find suitable values, return **only** the result as a JSON object with the following keys: calories, protein, carbs, fat, sugar. "
-        + "If the item is a branded product, estimate values based on what you know about that product. If it's unknown, estimate based on a similar generic food. "
-        + "If you cannot find suitable values, return a message telling the user what additional information you need. Do not include any explanation."
-    )
-
+ 
+    # Clean up old conversations
+    cleanup_old_conversations()
+    
+    # Get or create conversation state
+    conversation_id = request.conversation_id or datetime.utcnow().isoformat()
+    if conversation_id not in active_conversations:
+        print('** New  Converstion')
+        conversation = ConversationState()
+        # Add system message to set context
+        conversation.history.add_message(SystemMessage(content=(
+            "You are a nutritional assistant. Analyze food descriptions and provide nutritional information. "
+            "If you can determine the nutritional information, respond with a JSON object containing: "
+            "calories (number), protein (number in grams), carbs (number in grams), fat (number in grams), "
+            "sugar (number in grams), description (string). Do not include units in the numbers, just return "
+            "the numeric values. Example: {\"calories\": 133, \"protein\": 4, \"carbs\": 25, \"fat\": 1.5, "
+            "\"sugar\": 2, \"description\": \"2 slices of white bread\"}. "
+            "If you need more information, respond with a normal message asking for what you need."
+        )))
+        active_conversations[conversation_id] = conversation
+    else:
+        print('** Ongoing  Converstion')
+        
+        conversation = active_conversations[conversation_id]
+    
+    # Update last activity
+    conversation.last_activity = datetime.utcnow()
+    
+    # Add user's message to history
+    if request.user_feedback:
+        conversation.history.add_user_message(
+            f"I previously said: {request.description}\n"
+            f"Let me clarify: {request.user_feedback}"
+        )
+    else:
+        conversation.history.add_user_message(request.description)
+    
+    # Debug: Print conversation history
+    print(f"\nConversation {conversation_id} history:")
+    for msg in conversation.history.messages:
+        print(f"- [{msg.type}]: {msg.content}")
+    
     try:
-        response = chat.invoke([HumanMessage(content=prompt_content)])
+        # Get response using full conversation history
+        response = chat.invoke(conversation.history.messages)
+        
+        # Add AI's response to history
+        conversation.history.add_ai_message(response.content)
         content = response.content.strip()
 
-        nutrition_raw = json.loads(content)
-        # Check if response is clarification message
-        if isinstance(nutrition_raw, dict) and "message" in nutrition_raw:
-            clarification_msg = nutrition_raw.get("message", "")
-            return ChatResponse(clarification=clarification_msg)
+        try:
+            print (content)
+            
+            # Try to parse as nutrition info
+            nutrition_raw = json.loads(content)
+            print (nutrition_raw)
+            nutrition = {
+                "calories": extract_number(nutrition_raw.get("calories", 0)),
+                "protein": extract_number(nutrition_raw.get("protein", 0)),
+                "carbs": extract_number(nutrition_raw.get("carbs", 0)),
+                "fat": extract_number(nutrition_raw.get("fat", 0)),
+                "sugar": extract_number(nutrition_raw.get("sugar", 0)),
+            }
+            description_normalized = nutrition_raw.get("description", request.description)
 
-        # Otherwise, assume it's the nutrition info
-        nutrition = {
-            "calories": extract_number(nutrition_raw.get("calories", 0)),
-            "protein": extract_number(nutrition_raw.get("protein", 0)),
-            "carbs": extract_number(nutrition_raw.get("carbs", 0)),
-            "fat": extract_number(nutrition_raw.get("fat", 0)),
-            "sugar": extract_number(nutrition_raw.get("sugar", 0)),
-        }
-        # Store meal in database
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO meals (user_id, description, calories, protein, carbs, fat, sugar, timestamp)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            request.user_id,
-            request.description,
-            nutrition["calories"],
-            nutrition["protein"],
-            nutrition["carbs"],
-            nutrition["fat"],
-            nutrition["sugar"],
-            datetime.utcnow().date().isoformat()
-        ))
-        conn.commit()
-        meal_id = cursor.lastrowid
-        conn.close()
-
-        # Return stored meal data
-        return ChatResponse(meal={
-            "id": meal_id,
-            "user_id": request.user_id,
-            "description": request.description,
-            "calories": nutrition.get("calories", 0),
-            "protein": nutrition.get("protein", 0),
-            "carbs": nutrition.get("carbs", 0),
-            "fat": nutrition.get("fat", 0),
-            "sugar": nutrition.get("sugar", 0),
-            "timestamp": datetime.utcnow().isoformat()
-        })
-    except (json.JSONDecodeError, TypeError) as e:
-        # If JSON parsing fails, treat content as clarification request
-        print(f"JSON parsing error: {e}, content: {content}")
-        return ChatResponse(clarification=content)
+            # Return nutritional information
+            return ChatResponse(
+                meal={
+                    "id": None,  # ID will be assigned when actually storing the meal
+                    "user_id": request.user_id,
+                    "description": description_normalized,
+                    "calories": nutrition.get("calories", 0),
+                    "protein": nutrition.get("protein", 0),
+                    "carbs": nutrition.get("carbs", 0),
+                    "fat": nutrition.get("fat", 0),
+                    "sugar": nutrition.get("sugar", 0),
+                    "timestamp": datetime.utcnow().isoformat()
+                },
+                conversation_id=conversation_id
+            )
+        except json.JSONDecodeError:
+            # If not JSON, treat as conversation message
+            # If not JSON, treat as conversation message but don't expose raw content
+            return ChatResponse(
+                message=response.content,
+                conversation_id=conversation_id
+            )
+    except Exception as e:
+        print(f"Error processing request: {e}")
+        return ChatResponse(
+            message="I couldn't process that. Could you try rephrasing?",
+            conversation_id=conversation_id
+        )
 
 from datetime import date
 
@@ -296,5 +365,52 @@ def clear_meals(user_id: str):
     conn.commit()
     conn.close()
     return Response(content=f"Cleared meals for user {user_id}", status_code=200)
+
+@app.post("/meals/", response_model=MealResponse)
+def create_meal(meal: MealCreate):
+    """
+    Create a new meal entry in the database.
+    This endpoint handles the actual storage of meal data, separate from the OpenAI chat functionality.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Use current date if timestamp not provided
+    timestamp = meal.timestamp or datetime.utcnow().date().isoformat()
+    
+    try:
+        cursor.execute("""
+            INSERT INTO meals (user_id, description, calories, protein, carbs, fat, sugar, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            meal.user_id,
+            meal.description,
+            meal.calories,
+            meal.protein,
+            meal.carbs,
+            meal.fat,
+            meal.sugar,
+            timestamp
+        ))
+        conn.commit()
+        meal_id = cursor.lastrowid
+        
+        # Return the created meal with its ID
+        return MealResponse(
+            id=meal_id,
+            user_id=meal.user_id,
+            description=meal.description,
+            calories=meal.calories,
+            protein=meal.protein,
+            carbs=meal.carbs,
+            fat=meal.fat,
+            sugar=meal.sugar,
+            timestamp=timestamp
+        )
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
 
 # Additional endpoints for stats and recommendations can be added here

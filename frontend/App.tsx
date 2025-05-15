@@ -1,28 +1,31 @@
 import React, { useState, useEffect } from 'react';
-import { SafeAreaView, View, Text, TextInput, Button, FlatList, StyleSheet, Alert } from 'react-native';
+import { SafeAreaView, View, Text, TextInput, Button, FlatList, StyleSheet, Alert, TouchableOpacity } from 'react-native';
 import { GestureHandlerRootView, GestureDetector, Gesture } from 'react-native-gesture-handler';
 import HamburgerMenu from './components/HamburgerMenu';
 
-// const mockUser = {
-//   id: 'user123',
-//   email: 'user@example.com',
-// };
-
 interface MealEntry {
   id: string;
+  user_id: string;
   description: string;
   calories: number;
   protein?: number;
   carbs?: number;
   fat?: number;
   sugar?: number;
+  timestamp?: string;
 }
 
 export default function App() {
   const [inputText, setInputText] = useState('');
   const [meals, setMeals] = useState<MealEntry[]>([]);
   const [loading, setLoading] = useState(false);
-  const [clarification, setClarification] = useState('');
+
+  // State for conversational logging
+  const [pendingMeal, setPendingMeal] = useState<MealEntry | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
+  const [userFeedback, setUserFeedback] = useState('');
+  const [conversationHistory, setConversationHistory] = useState<string[]>([]);
 
   const isToday = (date: Date): boolean => {
     const today = new Date();
@@ -56,11 +59,6 @@ export default function App() {
     fetchUserProfile();
     fetchNutritionNeeds();
   }, [currentDate]);
-
-  // Refetch functions
-  // Line 75: fetchMealsFromBackend
-  // Line 79: fetchUserProfile
-  // Line 80: fetchNutritionNeeds
 
   const fetchUserProfile = async () => {
     try {
@@ -103,7 +101,6 @@ export default function App() {
   const fetchMealsFromBackend = async () => {
     try {
       const dateStr = currentDate.toISOString().split('T')[0];
-      console.log(dateStr)
       const response = await fetch(`http://192.168.0.9:8000/meals/1?search_date=${dateStr}`);
       if (!response.ok) {
         throw new Error('Failed to fetch meals from backend');
@@ -126,17 +123,19 @@ export default function App() {
     }
   };
 
-  const fetchNutrition = async (description: string): Promise<any> => {
+  // For handling food input and conversation
+  const handleFoodInput = async (input: string) => {
     setLoading(true);
+    
     try {
       const response = await fetch('http://192.168.0.9:8000/openai/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_id: "1",
-          description,
+          description: input,
+          conversation_id: conversationId,
+          user_feedback: userFeedback || undefined,
           model: 'gpt-4',
           temperature: 0,
           max_tokens: 150,
@@ -144,42 +143,88 @@ export default function App() {
       });
 
       if (!response.ok) {
-        console.error("Backend API error:", await response.text());
-        throw new Error("API call failed");
+        throw new Error('Failed to process food input');
       }
-
+      
       const result = await response.json();
-      return result;
+      
+      // Always use the conversation ID from the response
+      setConversationId(result.conversation_id);
+      
+      if (result.message) {
+        // Add AI's message to conversation history
+        setConversationHistory(prev => [...prev, `App: ${result.message}`]);
+      } else if (result.meal) {
+        setPendingMeal(result.meal);
+        setAwaitingConfirmation(true);
+        
+        const mealInfo = `App: Found "${result.meal.description}" (${result.meal.calories} cal)`;
+        setConversationHistory(prev => [...prev, mealInfo]);
+      }
     } catch (error) {
-      console.error("Error fetching nutritional information:", error);
-      Alert.alert('Error', 'Failed to fetch nutritional information.');
-      return null;
+      console.error('Error:', error);
+      Alert.alert('Error', 'Failed to process food input');
     } finally {
       setLoading(false);
     }
   };
 
+  // For saving confirmed meals
+  const saveMeal = async (meal: MealEntry) => {
+    try {
+      const response = await fetch('http://192.168.0.9:8000/meals/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: "1",
+          description: meal.description,
+          calories: meal.calories,
+          protein: meal.protein,
+          carbs: meal.carbs,
+          fat: meal.fat,
+          sugar: meal.sugar,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save meal');
+      }
+
+      const savedMeal = await response.json();
+      setMeals(prev => [savedMeal, ...prev]);
+      return savedMeal;
+    } catch (error) {
+      throw new Error('Failed to save meal');
+    }
+  };
+
+  // Handle user input
   const addMeal = async () => {
     if (!inputText.trim()) return;
-    const result = await fetchNutrition(inputText.trim());
-    if (result) {
-      if (result.meal) {
-        const newMeal = {
-          ...result.meal,
-          calories: Number(result.meal.calories),
-          protein: Number(result.meal.protein),
-          carbs: Number(result.meal.carbs),
-          fat: Number(result.meal.fat),
-          sugar: Number(result.meal.sugar),
-        };
-        const newMeals = [newMeal, ...meals];
-        setMeals(newMeals);
-        setInputText('');
-        setClarification('');
-      } else if (result.clarification) {
-        setClarification(result.clarification);
-      }
+    
+    const input = inputText.trim();
+    setInputText(''); // Clear input immediately
+    
+    // Add to conversation history
+    if (awaitingConfirmation) {
+      setConversationHistory(prev => [...prev, `You: ${input}`]);
+      setUserFeedback(input);
+    } else {
+      // Start a new conversation
+      setConversationHistory([`You: ${input}`]);
+      setUserFeedback('');
     }
+    
+    await handleFoodInput(input);
+  };
+
+  const cancelMeal = () => {
+    setPendingMeal(null);
+    setConversationId(null);
+    setAwaitingConfirmation(false);
+    setUserFeedback('');
+    setConversationHistory([]);
+    setInputText('');
   };
 
   const panGesture = Gesture.Pan()
@@ -302,28 +347,88 @@ export default function App() {
               onChangeText={setInputText}
               editable={!loading}
             />
-            <Button title={loading ? 'Loading...' : 'Add'} onPress={addMeal} disabled={loading} />
+            <TouchableOpacity 
+              style={[styles.sendButton, loading && styles.sendButtonDisabled]} 
+              onPress={addMeal} 
+              disabled={loading}
+            >
+              <Text style={styles.sendButtonText}>{loading ? '...' : '➤'}</Text>
+            </TouchableOpacity>
           </View>
-          {clarification ? (
-            <View style={styles.clarificationContainer}>
-              <Text style={styles.clarificationText}>{clarification}</Text>
-            </View>
-          ) : null}   
-          <FlatList
-            data={meals}
-            keyExtractor={(item) => item.id.toString()}
-            renderItem={({ item }) => (
-              <View style={styles.mealItem}>
-                <Text style={styles.mealDescription}>{item.description}</Text>
-                <Text style={styles.mealNutrition}>
-                  Calories: {item.calories.toFixed(0)}, Protein: {item.protein?.toFixed(0)}, Carbs: {item.carbs?.toFixed(0)}, Fat: {item.fat?.toFixed(0)}, Sugar: {item.sugar?.toFixed(0)}
-                </Text>
-              </View>
-            )}
-            ListEmptyComponent={<Text style={styles.emptyText}>No meals logged for this date.</Text>}
-          />
 
+          {/* Conversation History */}
+          {conversationHistory.length > 0 && (
+            <View style={styles.conversationContainer}>
+              {conversationHistory.map((message, index) => (
+                <Text key={index} style={styles.conversationMessage}>
+                  {message}
+                </Text>
+              ))}
+            </View>
+          )}
           
+          {/* Confirmation UI */}
+          {awaitingConfirmation && pendingMeal ? (
+            <View style={styles.confirmationContainer}>
+              <Text style={styles.confirmationText}>
+                {pendingMeal.description}
+              </Text>
+              <Text style={styles.confirmationText}>
+                Calories: {pendingMeal.calories.toFixed(0)}, Protein: {pendingMeal.protein?.toFixed(0)}, 
+                Carbs: {pendingMeal.carbs?.toFixed(0)}, Fat: {pendingMeal.fat?.toFixed(0)}, 
+                Sugar: {pendingMeal.sugar?.toFixed(0)}
+              </Text>
+              <View style={styles.confirmationButtons}>
+                <TouchableOpacity 
+                  style={[styles.iconButton, styles.confirmButton]} 
+                  onPress={async () => {
+                    if (pendingMeal) {
+                      try {
+                        const savedMeal = await saveMeal(pendingMeal);
+                        setConversationHistory(prev => [...prev, `Meal logged: ${savedMeal.description}`]);
+                        
+                        // Reset all states
+                        setPendingMeal(null);
+                        setConversationId(null);
+                        setAwaitingConfirmation(false);
+                        setUserFeedback('');
+                        
+                        // Clear conversation after delay
+                        setTimeout(() => setConversationHistory([]), 3000);
+                      } catch (error) {
+                        console.error('Error:', error);
+                        Alert.alert('Error', 'Failed to save meal');
+                      }
+                    }
+                  }}
+                >
+                  <Text style={styles.iconButtonText}>✓</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.iconButton, styles.cancelButton]} 
+                  onPress={cancelMeal}
+                >
+                  <Text style={styles.iconButtonText}>✗</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <FlatList
+              data={meals}
+              keyExtractor={(item) => item.id.toString()}
+              renderItem={({ item }) => (
+                <View style={styles.mealItem}>
+                  <Text style={styles.mealDescription}>{item.description}</Text>
+                  <Text style={styles.mealNutrition}>
+                    Calories: {item.calories.toFixed(0)}, Protein: {item.protein?.toFixed(0)}, 
+                    Carbs: {item.carbs?.toFixed(0)}, Fat: {item.fat?.toFixed(0)}, 
+                    Sugar: {item.sugar?.toFixed(0)}
+                  </Text>
+                </View>
+              )}
+              ListEmptyComponent={<Text style={styles.emptyText}>No meals logged for this date.</Text>}
+            />
+          )}
         </SafeAreaView>
       </GestureDetector>
     </GestureHandlerRootView>
@@ -346,10 +451,70 @@ const styles = StyleSheet.create({
   pos_remaining: { fontSize: 16, color: 'green' },
   inputContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
   input: { flex: 1, borderColor: '#ccc', borderWidth: 1, borderRadius: 4, padding: 8, paddingLeft: 12, marginRight: 8 },
+  sendButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sendButtonDisabled: {
+    backgroundColor: '#ccc',
+  },
+  sendButtonText: {
+    color: 'white',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
   mealItem: { padding: 12, borderBottomColor: '#eee', borderBottomWidth: 1 },
   mealDescription: { fontSize: 16, fontWeight: '500' },
   mealNutrition: { fontSize: 14, color: '#555' },
   emptyText: { textAlign: 'center', color: '#999', marginTop: 20 },
-  clarificationContainer: { padding: 10, backgroundColor: '#fff3cd', borderColor: '#ffeeba', borderWidth: 1, borderRadius: 4, marginBottom: 16 },
-  clarificationText: { color: '#856404', fontSize: 14 },
+  conversationContainer: { 
+    padding: 10, 
+    backgroundColor: '#f8f9fa', 
+    borderRadius: 8, 
+    marginBottom: 16, 
+    maxHeight: 150,
+  },
+  conversationMessage: { 
+    fontSize: 14, 
+    marginBottom: 4, 
+    color: '#333' 
+  },
+  confirmationContainer: { 
+    padding: 16, 
+    backgroundColor: '#e6f0ff', 
+    borderRadius: 8, 
+    marginBottom: 16 
+  },
+  confirmationText: { 
+    fontSize: 16, 
+    marginBottom: 8 
+  },
+  confirmationButtons: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginTop: 10
+  },
+  iconButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 10
+  },
+  confirmButton: {
+    backgroundColor: '#4CAF50'
+  },
+  cancelButton: {
+    backgroundColor: '#F44336'
+  },
+  iconButtonText: {
+    fontSize: 24,
+    color: 'white',
+    fontWeight: 'bold'
+  },
 });
