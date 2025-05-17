@@ -7,6 +7,7 @@ interface MealEntry {
   id: string;
   user_id: string;
   description: string;
+  assumptions: string;
   calories: number;
   protein?: number;
   carbs?: number;
