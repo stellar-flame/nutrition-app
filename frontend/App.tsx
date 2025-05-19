@@ -1,20 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { SafeAreaView, View, Text, TextInput, Button, FlatList, StyleSheet, Alert, TouchableOpacity } from 'react-native';
+import { SafeAreaView, View, Text, Button, StyleSheet, Alert } from 'react-native';
 import { GestureHandlerRootView, GestureDetector, Gesture } from 'react-native-gesture-handler';
 import HamburgerMenu from './components/HamburgerMenu';
-
-interface MealEntry {
-  id: string;
-  user_id: string;
-  description: string;
-  assumptions: string;
-  calories: number;
-  protein?: number;
-  carbs?: number;
-  fat?: number;
-  sugar?: number;
-  timestamp?: string;
-}
+import MealList from './components/MealList';
+import MealInput from './components/MealInput';
+import NutritionSummary from './components/NutritionSummary';
+import ConversationHistory from './components/ConversationHistory';
+import MealConfirmation from './components/MealConfirmation';
+import { MealEntry, UserProfile, NutritionNeeds } from './types';
 
 export default function App() {
   const [inputText, setInputText] = useState('');
@@ -37,7 +30,7 @@ export default function App() {
     );
   };
 
-  const [userProfile, setUserProfile] = useState({
+  const [userProfile, setUserProfile] = useState<UserProfile>({
     firstName: '',
     lastName: '',
     dateOfBirth: '',
@@ -45,7 +38,7 @@ export default function App() {
     height: '',
   });
 
-  const [nutritionNeeds, setNutritionNeeds] = useState({
+  const [nutritionNeeds, setNutritionNeeds] = useState<NutritionNeeds>({
     calories: 0,
     protein: 0,
     fat: 0,
@@ -288,153 +281,22 @@ export default function App() {
           </View>
           <Text style={styles.title}>Health App - Calorie Tracker</Text>
 
-          <View style={styles.nutritionTable}>
-            <View style={styles.nutritionRow}>
-              <Text style={styles.nutritionLabel}>Calories</Text>
-              <View style={styles.nutritionValuesContainer}>
-                <Text style={[styles.nutritionValue, styles.nutritionValueColumn]}>
-                  {totals.calories.toFixed(0)}/{nutritionNeeds.calories}
-                </Text>
-                <Text style={[totals.calories < nutritionNeeds.calories ? styles.pos_remaining : styles.neg_remaining, styles.nutritionValueColumn]}>
-                  {Math.round(nutritionNeeds.calories - totals.calories)}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.nutritionRow}>
-              <Text style={styles.nutritionLabel}>Protein (g)</Text>
-              <View style={styles.nutritionValuesContainer}>
-                <Text style={[styles.nutritionValue, styles.nutritionValueColumn]}>
-                  {totals.protein.toFixed(0)}/{nutritionNeeds.protein}
-                </Text>
-                <Text style={[totals.protein < nutritionNeeds.protein ? styles.pos_remaining : styles.neg_remaining, styles.nutritionValueColumn]}>
-                  {Math.round(nutritionNeeds.protein - totals.protein)}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.nutritionRow}>
-              <Text style={styles.nutritionLabel}>Carbs (g)</Text>
-              <View style={styles.nutritionValuesContainer}>
-                <Text style={[styles.nutritionValue, styles.nutritionValueColumn]}>
-                  {totals.carbs.toFixed(0)}/{nutritionNeeds.carbs}
-                </Text>
-                <Text style={[totals.carbs < nutritionNeeds.carbs ? styles.pos_remaining : styles.neg_remaining, styles.nutritionValueColumn]}>
-                  {Math.round(nutritionNeeds.carbs - totals.carbs)}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.nutritionRow}>
-              <Text style={styles.nutritionLabel}>Fat (g)</Text>
-              <View style={styles.nutritionValuesContainer}>
-                <Text style={[styles.nutritionValue, styles.nutritionValueColumn]}>
-                  {totals.fat.toFixed(0)}/{nutritionNeeds.fat}
-                </Text>
-                <Text style={[totals.fat < nutritionNeeds.fat ? styles.pos_remaining : styles.neg_remaining, styles.nutritionValueColumn]}>
-                  {Math.round(nutritionNeeds.fat - totals.fat)}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.nutritionRow}>
-              <Text style={styles.nutritionLabel}>Sugar (g)</Text>
-              <View style={styles.nutritionValuesContainer}>
-                <Text style={[styles.nutritionValue, styles.nutritionValueColumn]}>{totals.sugar.toFixed(0)}</Text>
-                <Text style={[totals.sugar < nutritionNeeds.sugar ? styles.pos_remaining : styles.neg_remaining, styles.nutritionValueColumn]}>
-                  {Math.round(nutritionNeeds.sugar - totals.sugar)}
-                </Text>
-              </View>
-            </View>
-          </View>
-          <View style={styles.inputContainer}>
-            <TextInput
-              style={styles.input}
-              placeholder="What did you eat?"
-              value={inputText}
-              onChangeText={setInputText}
-              editable={!loading}
-            />
-            <TouchableOpacity 
-              style={[styles.sendButton, loading && styles.sendButtonDisabled]} 
-              onPress={addMeal} 
-              disabled={loading}
-            >
-              <Text style={styles.sendButtonText}>{loading ? '...' : '➤'}</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Conversation History */}
-          {conversationHistory.length > 0 && (
-            <View style={styles.conversationContainer}>
-              {conversationHistory.map((message, index) => (
-                <Text key={index} style={styles.conversationMessage}>
-                  {message}
-                </Text>
-              ))}
-            </View>
-          )}
-          
-          {/* Confirmation UI */}
+          <NutritionSummary totals={totals} nutritionNeeds={nutritionNeeds} />
+          <MealInput inputText={inputText} setInputText={setInputText} addMeal={addMeal} loading={loading} />
+          <ConversationHistory conversationHistory={conversationHistory} />
           {awaitingConfirmation && pendingMeal ? (
-            <View style={styles.confirmationContainer}>
-              <Text style={styles.confirmationText}>
-                {pendingMeal.description}
-              </Text>
-               <Text style={styles.confirmationText}>
-                {pendingMeal.assumptions}
-              </Text>
-              <Text style={styles.confirmationText}>
-                Calories: {pendingMeal.calories.toFixed(0)}, Protein: {pendingMeal.protein?.toFixed(0)}, 
-                Carbs: {pendingMeal.carbs?.toFixed(0)}, Fat: {pendingMeal.fat?.toFixed(0)}, 
-                Sugar: {pendingMeal.sugar?.toFixed(0)}
-              </Text>
-              <View style={styles.confirmationButtons}>
-                <TouchableOpacity 
-                  style={[styles.iconButton, styles.confirmButton]} 
-                  onPress={async () => {
-                    if (pendingMeal) {
-                      try {
-                        const savedMeal = await saveMeal(pendingMeal);
-                        setConversationHistory(prev => [...prev, `Meal logged: ${savedMeal.description}`]);
-                        
-                        // Reset all states
-                        setPendingMeal(null);
-                        setConversationId(null);
-                        setAwaitingConfirmation(false);
-                        setUserFeedback('');
-                        
-                        // Clear conversation after delay
-                        setTimeout(() => setConversationHistory([]), 3000);
-                      } catch (error) {
-                        console.error('Error:', error);
-                        Alert.alert('Error', 'Failed to save meal');
-                      }
-                    }
-                  }}
-                >
-                  <Text style={styles.iconButtonText}>✓</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={[styles.iconButton, styles.cancelButton]} 
-                  onPress={cancelMeal}
-                >
-                  <Text style={styles.iconButtonText}>✗</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ) : (
-            <FlatList
-              data={meals}
-              keyExtractor={(item) => item.id.toString()}
-              renderItem={({ item }) => (
-                <View style={styles.mealItem}>
-                  <Text style={styles.mealDescription}>{item.description}</Text>
-                  <Text style={styles.mealNutrition}>
-                    Calories: {item.calories.toFixed(0)}, Protein: {item.protein?.toFixed(0)}, 
-                    Carbs: {item.carbs?.toFixed(0)}, Fat: {item.fat?.toFixed(0)}, 
-                    Sugar: {item.sugar?.toFixed(0)}
-                  </Text>
-                </View>
-              )}
-              ListEmptyComponent={<Text style={styles.emptyText}>No meals logged for this date.</Text>}
+            <MealConfirmation
+              pendingMeal={pendingMeal}
+              saveMeal={saveMeal}
+              setConversationHistory={setConversationHistory}
+              setPendingMeal={setPendingMeal}
+              setConversationId={setConversationId}
+              setAwaitingConfirmation={setAwaitingConfirmation}
+              setUserFeedback={setUserFeedback}
+              cancelMeal={cancelMeal}
             />
+          ) : (
+            <MealList meals={meals} />
           )}
         </SafeAreaView>
       </GestureDetector>
@@ -448,80 +310,4 @@ const styles = StyleSheet.create({
   currentDate: { fontSize: 18, fontWeight: '600', textAlign: 'center', marginHorizontal: 12 },
   currentDateHighlight: { fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginHorizontal: 12, color: '#007AFF' },
   title: { fontSize: 24, fontWeight: 'bold', marginBottom: 16, textAlign: 'center' },
-  nutritionTable: { marginBottom: 16, borderWidth: 1, borderColor: '#ccc', borderRadius: 4, padding: 8 },
-  nutritionRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
-  nutritionLabel: { fontSize: 16, fontWeight: '600' },
-  nutritionValue: { fontSize: 16 },
-  nutritionValuesContainer: { flexDirection: 'row', justifyContent: 'flex-end', width: 160 },
-  nutritionValueColumn: { flex: 1, textAlign: 'right' },
-  neg_remaining: { fontSize: 16, color: 'red' },
-  pos_remaining: { fontSize: 16, color: 'green' },
-  inputContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
-  input: { flex: 1, borderColor: '#ccc', borderWidth: 1, borderRadius: 4, padding: 8, paddingLeft: 12, marginRight: 8 },
-  sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#007AFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sendButtonDisabled: {
-    backgroundColor: '#ccc',
-  },
-  sendButtonText: {
-    color: 'white',
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  mealItem: { padding: 12, borderBottomColor: '#eee', borderBottomWidth: 1 },
-  mealDescription: { fontSize: 16, fontWeight: '500' },
-  mealNutrition: { fontSize: 14, color: '#555' },
-  emptyText: { textAlign: 'center', color: '#999', marginTop: 20 },
-  conversationContainer: { 
-    padding: 10, 
-    backgroundColor: '#f8f9fa', 
-    borderRadius: 8, 
-    marginBottom: 16, 
-    maxHeight: 150,
-  },
-  conversationMessage: { 
-    fontSize: 14, 
-    marginBottom: 4, 
-    color: '#333' 
-  },
-  confirmationContainer: { 
-    padding: 16, 
-    backgroundColor: '#e6f0ff', 
-    borderRadius: 8, 
-    marginBottom: 16 
-  },
-  confirmationText: { 
-    fontSize: 16, 
-    marginBottom: 8 
-  },
-  confirmationButtons: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 10
-  },
-  iconButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginHorizontal: 10
-  },
-  confirmButton: {
-    backgroundColor: '#4CAF50'
-  },
-  cancelButton: {
-    backgroundColor: '#F44336'
-  },
-  iconButtonText: {
-    fontSize: 24,
-    color: 'white',
-    fontWeight: 'bold'
-  },
 });
