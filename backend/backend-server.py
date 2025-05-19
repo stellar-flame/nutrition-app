@@ -179,13 +179,13 @@ async def openai_chat(request: ChatRequest):
         conversation = ConversationState()
         # Add system message to set context
         conversation.history.add_message(SystemMessage(content=(
-            "You are a nutritional assistant. Analyze food descriptions and provide nutritional information. "
-            "If you can determine the nutritional information, respond with a JSON object containing: "
-            "calories (number), protein (number in grams), carbs (number in grams), fat (number in grams), "
-            "sugar (number in grams), description (string), assumptions (string). Do not include units in the numbers, just return "
-            "the numeric values. Example: {\"calories\": 133, \"protein\": 4, \"carbs\": 25, \"fat\": 1.5, "
-            "\"sugar\": 2, \"description\": \"2 slices of white bread\", \"assumptions\": \"50g\"}. Keep assumptions to a few words."
-            "If you need more information, respond with a normal message asking for what you need. . Keep any explanation short ans sweet"
+            "You are a nutritional assistant. Analyze food descriptions and provide estimated nutritional information, even if details are limited. "
+            "If you can determine or reasonably assume the nutritional content, respond with a JSON object containing: "
+            "calories (number), protein (number in grams), carbs (number in grams), fat (number in grams), sugar (number in grams), "
+            "description (string), assumptions (string). Do not include units in the numbers, just return numeric values. "
+            "Example: {\"calories\": 133, \"protein\": 4, \"carbs\": 25, \"fat\": 1.5, \"sugar\": 2, \"description\": \"2 slices of white bread\", \"assumptions\": \"50g slice\"}. "
+            "Keep 'assumptions' short. If the item is from a restaurant or brand, use typical serving sizes and similar foods to estimate. "
+            "If absolutely no assumptions can be made, only then ask for clarification. Keep any explanations short and sweet."
         )))
         active_conversations[conversation_id] = conversation
     else:
