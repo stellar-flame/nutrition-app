@@ -224,6 +224,20 @@ export default function App() {
     setInputText('');
   };
 
+  const handleDeleteMeal = async (id: string) => {
+    try {
+      const response = await fetch(`http://192.168.0.9:8000/meals/${id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) {
+        throw new Error('Failed to delete meal');
+      }
+      setMeals((prev) => prev.filter((meal) => meal.id !== id));
+    } catch (error) {
+      Alert.alert('Error', 'Failed to delete meal');
+    }
+  };
+
   const panGesture = Gesture.Pan()
     .onEnd((event) => {
       const { translationX } = event;
@@ -296,7 +310,7 @@ export default function App() {
               cancelMeal={cancelMeal}
             />
           ) : (
-            <MealList meals={meals} />
+            <MealList meals={meals} onDeleteMeal={handleDeleteMeal} />
           )}
         </SafeAreaView>
       </GestureDetector>

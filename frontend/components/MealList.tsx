@@ -1,34 +1,64 @@
 import React from 'react';
-import { FlatList, View, Text, StyleSheet } from 'react-native';
+import { FlatList, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { MealEntry } from '../types';
+import { Swipeable } from 'react-native-gesture-handler';
 
 interface MealListProps {
   meals: MealEntry[];
+  onDeleteMeal?: (id: string) => void;
 }
 
-const MealList: React.FC<MealListProps> = ({ meals }) => (
+const renderRightActions = (id: string, onDeleteMeal?: (id: string) => void) => (
+  <TouchableOpacity
+    style={styles.deleteButton}
+    onPress={() => onDeleteMeal && onDeleteMeal(id)}
+  >
+    <Text style={styles.deleteButtonText}>🗑️</Text>
+  </TouchableOpacity>
+);
+
+const MealList: React.FC<MealListProps> = ({ meals, onDeleteMeal }) => (
   <FlatList
     data={meals}
     keyExtractor={(item) => item.id.toString()}
     renderItem={({ item }) => (
-      <View style={styles.mealItem}>
-        <Text style={styles.mealDescription}>{item.description}</Text>
-        <Text style={styles.mealNutrition}>
-          Calories: {item.calories.toFixed(0)}, Protein: {item.protein?.toFixed(0)},
-          Carbs: {item.carbs?.toFixed(0)}, Fat: {item.fat?.toFixed(0)},
-          Sugar: {item.sugar?.toFixed(0)}
-        </Text>
-      </View>
+      <Swipeable
+        renderRightActions={() => renderRightActions(item.id, onDeleteMeal)}
+      >
+        <View style={styles.mealItem}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.mealDescription}>{item.description}</Text>
+            <Text style={styles.mealNutrition}>
+              Calories: {item.calories.toFixed(0)}, Protein: {item.protein?.toFixed(0)},
+              Carbs: {item.carbs?.toFixed(0)}, Fat: {item.fat?.toFixed(0)},
+              Sugar: {item.sugar?.toFixed(0)}
+            </Text>
+          </View>
+        </View>
+      </Swipeable>
     )}
     ListEmptyComponent={<Text style={styles.emptyText}>No meals logged for this date.</Text>}
   />
 );
 
 const styles = StyleSheet.create({
-  mealItem: { padding: 12, borderBottomColor: '#eee', borderBottomWidth: 1 },
+  mealItem: { flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomColor: '#eee', borderBottomWidth: 1 },
   mealDescription: { fontSize: 16, fontWeight: '500' },
   mealNutrition: { fontSize: 14, color: '#555' },
   emptyText: { textAlign: 'center', color: '#999', marginTop: 20 },
+  deleteButton: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F44336',
+    width: 60,
+    height: '100%',
+    borderRadius: 0,
+  },
+  deleteButtonText: {
+    color: 'white',
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
 });
 
 export default MealList;

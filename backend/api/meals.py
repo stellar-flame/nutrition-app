@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Path, Response
+from fastapi import APIRouter, Path, Response, HTTPException
 from datetime import date, datetime
 from crud import get_meals, create_meal, clear_meals
 from models import MealCreate, MealResponse
+from db import get_db_connection
 
 router = APIRouter()
 
@@ -44,3 +45,15 @@ def create_meal_endpoint(meal: MealCreate):
         sugar=meal.sugar,
         timestamp=timestamp
     )
+
+@router.delete("/meals/{meal_id}")
+def delete_meal(meal_id: int):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM meals WHERE id = ?", (meal_id,))
+    if cursor.rowcount == 0:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Meal not found")
+    conn.commit()
+    conn.close()
+    return Response(content=f"Deleted meal {meal_id}", status_code=200)
