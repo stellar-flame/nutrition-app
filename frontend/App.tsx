@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { SafeAreaView, View, Text, Button, StyleSheet, Alert } from 'react-native';
 import { GestureHandlerRootView, GestureDetector, Gesture } from 'react-native-gesture-handler';
+import api from './api/axios';
 import HamburgerMenu from './components/HamburgerMenu';
 import MealList from './components/MealList';
 import MealInput from './components/MealInput';
@@ -56,11 +57,7 @@ export default function App() {
 
   const fetchUserProfile = async () => {
     try {
-      const response = await fetch(`http://192.168.0.9:8000/users/1`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch user profile');
-      }
-      const data = await response.json();
+      const { data } = await api.get('/users/1');
       setUserProfile({
         firstName: data.first_name,
         lastName: data.last_name,
@@ -75,11 +72,7 @@ export default function App() {
 
   const fetchNutritionNeeds = async () => {
     try {
-      const response = await fetch(`http://192.168.0.9:8000/users/1/nutrition-needs`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch nutrition needs');
-      }
-      const data = await response.json();
+      const { data } = await api.get('/users/1/nutrition-needs');
       setNutritionNeeds({
         calories: data.calories,
         protein: data.protein,
@@ -95,11 +88,9 @@ export default function App() {
   const fetchMealsFromBackend = async () => {
     try {
       const dateStr = currentDate.toISOString().split('T')[0];
-      const response = await fetch(`http://192.168.0.9:8000/meals/1?search_date=${dateStr}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch meals from backend');
-      }
-      const data = await response.json();
+      const { data } = await api.get(`/meals/1`, {
+        params: { search_date: dateStr }
+      });
       if (data.meals) {
         const cleanedMeals = data.meals.map((meal: any) => ({
           ...meal,
@@ -122,25 +113,15 @@ export default function App() {
     setLoading(true);
     
     try {
-      const response = await fetch('http://192.168.0.9:8000/openai/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: "1",
-          description: input,
-          conversation_id: conversationId,
-          user_feedback: userFeedback || undefined,
-          model: 'gpt-4',
-          temperature: 0,
-          max_tokens: 150,
-        }),
+      const { data: result } = await api.post('/openai/chat', {
+        user_id: "1",
+        description: input,
+        conversation_id: conversationId,
+        user_feedback: userFeedback || undefined,
+        model: 'gpt-4',
+        temperature: 0,
+        max_tokens: 150,
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to process food input');
-      }
-      
-      const result = await response.json();
       
       // Always use the conversation ID from the response
       setConversationId(result.conversation_id);
@@ -169,25 +150,15 @@ export default function App() {
   // For saving confirmed meals
   const saveMeal = async (meal: MealEntry) => {
     try {
-      const response = await fetch('http://192.168.0.9:8000/meals/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: "1",
-          description: meal.description,
-          calories: meal.calories,
-          protein: meal.protein,
-          carbs: meal.carbs,
-          fat: meal.fat,
-          sugar: meal.sugar,
-        }),
+      const { data: savedMeal } = await api.post('/meals/', {
+        user_id: "1",
+        description: meal.description,
+        calories: meal.calories,
+        protein: meal.protein,
+        carbs: meal.carbs,
+        fat: meal.fat,
+        sugar: meal.sugar,
       });
-
-      if (!response.ok) {
-        throw new Error('Failed to save meal');
-      }
-
-      const savedMeal = await response.json();
       setMeals(prev => [savedMeal, ...prev]);
       return savedMeal;
     } catch (error) {
@@ -226,12 +197,7 @@ export default function App() {
 
   const handleDeleteMeal = async (id: string) => {
     try {
-      const response = await fetch(`http://192.168.0.9:8000/meals/${id}`, {
-        method: 'DELETE',
-      });
-      if (!response.ok) {
-        throw new Error('Failed to delete meal');
-      }
+      await api.delete(`/meals/${id}`);
       setMeals((prev) => prev.filter((meal) => meal.id !== id));
     } catch (error) {
       Alert.alert('Error', 'Failed to delete meal');
