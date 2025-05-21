@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { SafeAreaView, View, Text, Button, StyleSheet } from 'react-native';
+import { SafeAreaView, View, Text, Button, StyleSheet, ActivityIndicator } from 'react-native';
 import { GestureHandlerRootView, GestureDetector, Gesture } from 'react-native-gesture-handler';
 import api from './api/axios';
-import './firebase/firebaseConfig';
 import { auth } from './firebase/firebaseConfig';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 
@@ -66,14 +65,13 @@ export default function App() {
 
   const [currentDate, setCurrentDate] = useState(new Date());
 
-  useEffect(() => {
+useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setIsAppInitializing(false);
     });
     return () => unsubscribe();
   }, []);
-
   useEffect(() => {
     fetchMealsFromBackend();
     fetchUserProfile();
@@ -286,17 +284,16 @@ export default function App() {
     },
     { calories: 0, protein: 0, carbs: 0, fat: 0, sugar: 0 }
   );
-
-  // Conditionally render LoginScreen or Main App
+ // Conditionally render LoginScreen or Main App
   if (!user) {
     return <LoginScreen onLogin={handleLogin} />;
   }
 
   if (isAppInitializing) {
     return (
-      <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text>Initializing App...</Text>
-      </SafeAreaView>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" />
+      </View>
     );
   }
 
