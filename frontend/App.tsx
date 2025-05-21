@@ -1,16 +1,29 @@
 import React, { useState, useEffect } from 'react';
-import { SafeAreaView, View, Text, Button, StyleSheet, Alert } from 'react-native';
+import { SafeAreaView, View, Text, Button, StyleSheet } from 'react-native';
 import { GestureHandlerRootView, GestureDetector, Gesture } from 'react-native-gesture-handler';
 import api from './api/axios';
+import './firebase/firebaseConfig';
+import { auth } from './firebase/firebaseConfig';
+import { onAuthStateChanged, signOut, User } from 'firebase/auth';
+
 import HamburgerMenu from './components/HamburgerMenu';
 import MealList from './components/MealList';
 import MealInput from './components/MealInput';
 import NutritionSummary from './components/NutritionSummary';
 import ConversationHistory from './components/ConversationHistory';
 import MealConfirmation from './components/MealConfirmation';
+import LoginScreen from './components/LoginScreen';
 import { MealEntry, UserProfile, NutritionNeeds } from './types';
 
 export default function App() {
+
+  useEffect(() => {
+    fetch("https://identitytoolkit.googleapis.com")
+      .then(res => console.log("✅ Firebase reachable:", res.status))
+      .catch(err => console.error("❌ Firebase NOT reachable:", err));
+  }, []);
+  
+  
   const [inputText, setInputText] = useState('');
   const [meals, setMeals] = useState<MealEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -21,6 +34,10 @@ export default function App() {
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
   const [userFeedback, setUserFeedback] = useState('');
   const [conversationHistory, setConversationHistory] = useState<string[]>([]);
+
+  // Add state for user authentication
+  const [user, setUser] = useState<User | null>(null);
+  const [isAppInitializing, setIsAppInitializing] = useState(true);
 
   const isToday = (date: Date): boolean => {
     const today = new Date();
@@ -50,14 +67,46 @@ export default function App() {
   const [currentDate, setCurrentDate] = useState(new Date());
 
   useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setIsAppInitializing(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
     fetchMealsFromBackend();
     fetchUserProfile();
     fetchNutritionNeeds();
-  }, [currentDate]);
+  }, [currentDate, user]);
+
+  const handleLogin = async (idToken: string) => {
+    try {
+      console.log('Logging in with ID token:', idToken);
+      // Send the ID token to the backend for verification
+      const { data } = await api.get('/auth/verify', {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      console.log('User verified:', data);
+      setUser({ uid: data.uid } as User); 
+    } catch (error) {
+      console.error('Token verification failed:', error);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      console.log('User logged out');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
 
   const fetchUserProfile = async () => {
+    if (!user?.uid) return;
     try {
-      const { data } = await api.get('/users/1');
+      const { data } = await api.get(`/users/${user.uid}`);
       setUserProfile({
         firstName: data.first_name,
         lastName: data.last_name,
@@ -71,8 +120,9 @@ export default function App() {
   };
 
   const fetchNutritionNeeds = async () => {
+    if (!user?.uid) return;
     try {
-      const { data } = await api.get('/users/1/nutrition-needs');
+      const { data } = await api.get(`/users/${user.uid}/nutrition-needs`);
       setNutritionNeeds({
         calories: data.calories,
         protein: data.protein,
@@ -86,10 +136,11 @@ export default function App() {
   };
 
   const fetchMealsFromBackend = async () => {
+    if (!user?.uid) return;
     try {
       const dateStr = currentDate.toISOString().split('T')[0];
-      const { data } = await api.get(`/meals/1`, {
-        params: { search_date: dateStr }
+      const { data } = await api.get(`/meals/${user.uid}`, {
+        params: { search_date: dateStr },
       });
       if (data.meals) {
         const cleanedMeals = data.meals.map((meal: any) => ({
@@ -111,10 +162,10 @@ export default function App() {
   // For handling food input and conversation
   const handleFoodInput = async (input: string) => {
     setLoading(true);
-    
+
     try {
       const { data: result } = await api.post('/openai/chat', {
-        user_id: "1",
+        user_id: user?.uid, // Dynamic user ID
         description: input,
         conversation_id: conversationId,
         user_feedback: userFeedback || undefined,
@@ -122,26 +173,25 @@ export default function App() {
         temperature: 0,
         max_tokens: 150,
       });
-      
+
       // Always use the conversation ID from the response
       setConversationId(result.conversation_id);
-      
+
       if (result.message) {
         // Add AI's message to conversation history
-        console.log("Message: " + result.message)
-        setConversationHistory(prev => [...prev, `App: ${result.message}`]);
+        console.log("Message: " + result.message);
+        setConversationHistory((prev) => [...prev, `App: ${result.message}`]);
       } else if (result.meal) {
-        console.log("Meal: " + result.message)
+        console.log("Meal: " + result.message);
         setPendingMeal(result.meal);
         setAwaitingConfirmation(true);
-        
+
         const mealInfo = `App: Found "${result.meal.description}" (${result.meal.calories} cal)`;
 
-        setConversationHistory(prev => [...prev, mealInfo]);
+        setConversationHistory((prev) => [...prev, mealInfo]);
       }
     } catch (error) {
       console.error('Error:', error);
-      Alert.alert('Error', 'Failed to process food input');
     } finally {
       setLoading(false);
     }
@@ -151,7 +201,7 @@ export default function App() {
   const saveMeal = async (meal: MealEntry) => {
     try {
       const { data: savedMeal } = await api.post('/meals/', {
-        user_id: "1",
+        user_id: user?.uid, // Dynamic user ID
         description: meal.description,
         calories: meal.calories,
         protein: meal.protein,
@@ -159,7 +209,7 @@ export default function App() {
         fat: meal.fat,
         sugar: meal.sugar,
       });
-      setMeals(prev => [savedMeal, ...prev]);
+      setMeals((prev) => [savedMeal, ...prev]);
       return savedMeal;
     } catch (error) {
       throw new Error('Failed to save meal');
@@ -169,20 +219,20 @@ export default function App() {
   // Handle user input
   const addMeal = async () => {
     if (!inputText.trim()) return;
-    
+
     const input = inputText.trim();
     setInputText(''); // Clear input immediately
-    
+
     // Add to conversation history
     if (awaitingConfirmation) {
-      setConversationHistory(prev => [...prev, `You: ${input}`]);
+      setConversationHistory((prev) => [...prev, `You: ${input}`]);
       setUserFeedback(input);
     } else {
       // Start a new conversation
       setConversationHistory([`You: ${input}`]);
       setUserFeedback('');
     }
-    
+
     await handleFoodInput(input);
   };
 
@@ -200,7 +250,7 @@ export default function App() {
       await api.delete(`/meals/${id}`);
       setMeals((prev) => prev.filter((meal) => meal.id !== id));
     } catch (error) {
-      Alert.alert('Error', 'Failed to delete meal');
+      console.error('Failed to delete meal');
     }
   };
 
@@ -209,14 +259,14 @@ export default function App() {
       const { translationX } = event;
       if (translationX > 50) {
         // Swipe right: previous day
-        setCurrentDate(prev => {
+        setCurrentDate((prev) => {
           const newDate = new Date(prev);
           newDate.setDate(newDate.getDate() - 1);
           return newDate;
         });
       } else if (translationX < -50) {
         // Swipe left: next day
-        setCurrentDate(prev => {
+        setCurrentDate((prev) => {
           const newDate = new Date(prev);
           newDate.setDate(newDate.getDate() + 1);
           return newDate;
@@ -236,6 +286,19 @@ export default function App() {
     },
     { calories: 0, protein: 0, carbs: 0, fat: 0, sugar: 0 }
   );
+
+  // Conditionally render LoginScreen or Main App
+  if (!user) {
+    return <LoginScreen onLogin={handleLogin} />;
+  }
+
+  if (isAppInitializing) {
+    return (
+      <SafeAreaView style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <Text>Initializing App...</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

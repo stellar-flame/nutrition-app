@@ -12,7 +12,8 @@ def create_user_profile_endpoint(user: UserProfile):
     return UserProfileResponse(id=user_id, **user.dict())
 
 @router.get("/users/{user_id}", response_model=UserProfileResponse)
-def get_user_profile_endpoint(user_id: int = Path(..., description="User ID to fetch profile for")):
+def get_user_profile_endpoint(user_id: str = Path(..., description="User UID to fetch profile for")):
+    print(f"Fetching user profile for UID: {user_id}")
     row = get_user_profile(user_id)
     if row is None:
         raise HTTPException(status_code=404, detail="User not found")
@@ -26,7 +27,7 @@ def get_user_profile_endpoint(user_id: int = Path(..., description="User ID to f
     )
 
 @router.get("/users/{user_id}/nutrition-needs")
-def get_nutrition_needs(user_id: int = Path(..., description="User ID to fetch nutrition needs for")):
+def get_nutrition_needs(user_id: str = Path(..., description="User UID to fetch nutrition needs for")):
     row = get_user_profile(user_id)
     if row is None:
         raise HTTPException(status_code=404, detail="User not found")

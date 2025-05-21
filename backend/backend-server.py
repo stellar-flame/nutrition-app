@@ -4,6 +4,7 @@ from db import init_db
 from api.chat import router as chat_router
 from api.meals import router as meals_router
 from api.users import router as users_router
+from api.auth import router as auth_router
 
 init_db()
 
@@ -20,3 +21,4 @@ app.add_middleware(
 app.include_router(chat_router)
 app.include_router(meals_router)
 app.include_router(users_router)
+app.include_router(auth_router)

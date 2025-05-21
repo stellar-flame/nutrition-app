@@ -1,6 +1,14 @@
 from math import floor
 import datetime as dt
 import re
+from firebase_admin import auth as firebase_auth
+from fastapi import HTTPException, Header
+import firebase_admin
+from firebase_admin import credentials
+
+# Initialize Firebase Admin SDK
+cred = credentials.Certificate("firebase-credentials/serviceAccountKey.json")
+firebase_admin.initialize_app(cred)
 
 def extract_number(value):
     if isinstance(value, (int, float)):
@@ -23,3 +31,22 @@ def calculate_age(dob_str: str) -> int:
     today = dt.date.today()
     age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
     return age
+
+def verify_firebase_token(authorization: str = Header(...)) -> str:
+    try:
+        # Log the Authorization header for debugging
+        print(f"Authorization header: {authorization}")
+
+        # Extract the token from the "Bearer <token>" format
+        token = authorization.split(" ")[1]
+        print(f"Extracted token: {token}")
+
+        # Verify the token using Firebase Admin SDK
+        decoded_token = firebase_auth.verify_id_token(token)
+        print(f"Decoded token: {decoded_token}")
+
+        return decoded_token["uid"]  # Return the UID from the decoded token
+    except IndexError:
+        raise HTTPException(status_code=422, detail="Invalid Authorization header format")
+    except Exception as e:
+        raise HTTPException(status_code=401, detail="Invalid Firebase token")

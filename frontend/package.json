@@ -17,6 +17,7 @@
     "expo-speech": "^13.1.6",
     "expo-status-bar": "~2.2.3",
     "express": "^5.1.0",
+    "firebase": "^11.8.0",
     "node-fetch": "^2.7.0",
     "react": "19.0.0",
     "react-native": "0.79.2",

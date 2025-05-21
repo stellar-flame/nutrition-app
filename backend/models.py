@@ -22,7 +22,7 @@ class UserProfile(BaseModel):
     height: float
 
 class UserProfileResponse(UserProfile):
-    id: int
+    id: str
 
 class MealCreate(BaseModel):
     user_id: str
