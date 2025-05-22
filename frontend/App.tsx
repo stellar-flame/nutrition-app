@@ -1,29 +1,35 @@
-import React, { useState, useEffect } from 'react';
-import { SafeAreaView, View, Text, Button, StyleSheet, ActivityIndicator } from 'react-native';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import api from './api/axios';
-import { auth } from './firebase/firebaseConfig';
-import { onAuthStateChanged, signOut, User } from 'firebase/auth';
+import React, { useState, useEffect } from "react";
+import {
+  SafeAreaView,
+  View,
+  Text,
+  Button,
+  StyleSheet,
+  ActivityIndicator,
+  TouchableOpacity,
+  Vibration,
+} from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import api from "./api/axios";
+import { auth } from "./firebase/firebaseConfig";
+import { onAuthStateChanged, signOut, User } from "firebase/auth";
 
-import HamburgerMenu from './components/HamburgerMenu';
-import MealList from './components/MealList';
-import MealInput from './components/MealInput';
-import NutritionSummary from './components/NutritionSummary';
-import ConversationHistory from './components/ConversationHistory';
-import MealConfirmation from './components/MealConfirmation';
-import LoginScreen from './components/LoginScreen';
-import { MealEntry, UserProfile, NutritionNeeds } from './types';
+import HamburgerMenu from "./components/HamburgerMenu";
+import MealList from "./components/MealList";
+import NutritionSummary from "./components/NutritionSummary";
+import LoginScreen from "./components/LoginScreen";
+import ChatOverlay from "./components/ChatOverlay";
+import { MealEntry, UserProfile, NutritionNeeds } from "./types";
 
 export default function App() {
-
   useEffect(() => {
     fetch("https://identitytoolkit.googleapis.com")
-      .then(res => console.log("✅ Firebase reachable:", res.status))
-      .catch(err => console.error("❌ Firebase NOT reachable:", err));
+      .then((res) => console.log("✅ Firebase reachable:", res.status))
+      .catch((err) => console.error("❌ Firebase NOT reachable:", err));
   }, []);
-  
-  
-  const [inputText, setInputText] = useState('');
+
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [inputText, setInputText] = useState("");
   const [meals, setMeals] = useState<MealEntry[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -31,7 +37,7 @@ export default function App() {
   const [pendingMeal, setPendingMeal] = useState<MealEntry | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
-  const [userFeedback, setUserFeedback] = useState('');
+  const [userFeedback, setUserFeedback] = useState("");
   const [conversationHistory, setConversationHistory] = useState<string[]>([]);
 
   // Add state for user authentication
@@ -48,11 +54,11 @@ export default function App() {
   };
 
   const [userProfile, setUserProfile] = useState<UserProfile>({
-    firstName: '',
-    lastName: '',
-    dateOfBirth: '',
-    weight: '',
-    height: '',
+    firstName: "",
+    lastName: "",
+    dateOfBirth: "",
+    weight: "",
+    height: "",
   });
 
   const [nutritionNeeds, setNutritionNeeds] = useState<NutritionNeeds>({
@@ -63,9 +69,21 @@ export default function App() {
     sugar: 0,
   });
 
-  const [currentDate, setCurrentDate] = useState(new Date());
+  // Add state for chat overlay visibility
+  const [isChatVisible, setIsChatVisible] = useState(false);
 
-useEffect(() => {
+  // Show chat overlay when meal confirmation is needed
+  useEffect(() => {
+    if (awaitingConfirmation && pendingMeal) {
+      setIsChatVisible(true);
+    }
+  }, [awaitingConfirmation, pendingMeal]);
+
+  const toggleChat = () => {
+    setIsChatVisible(!isChatVisible);
+  };
+
+  useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setIsAppInitializing(false);
@@ -80,24 +98,24 @@ useEffect(() => {
 
   const handleLogin = async (idToken: string) => {
     try {
-      console.log('Logging in with ID token:', idToken);
+      console.log("Logging in with ID token:", idToken);
       // Send the ID token to the backend for verification
-      const { data } = await api.get('/auth/verify', {
+      const { data } = await api.get("/auth/verify", {
         headers: { Authorization: `Bearer ${idToken}` },
       });
-      console.log('User verified:', data);
-      setUser({ uid: data.uid } as User); 
+      console.log("User verified:", data);
+      setUser({ uid: data.uid } as User);
     } catch (error) {
-      console.error('Token verification failed:', error);
+      console.error("Token verification failed:", error);
     }
   };
 
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      console.log('User logged out');
+      console.log("User logged out");
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error("Logout error:", error);
     }
   };
 
@@ -113,7 +131,7 @@ useEffect(() => {
         height: data.height.toString(),
       });
     } catch (error) {
-      console.error('Error fetching user profile:', error);
+      console.error("Error fetching user profile:", error);
     }
   };
 
@@ -129,14 +147,14 @@ useEffect(() => {
         sugar: data.sugar,
       });
     } catch (error) {
-      console.error('Error fetching nutrition needs:', error);
+      console.error("Error fetching nutrition needs:", error);
     }
   };
 
   const fetchMealsFromBackend = async () => {
     if (!user?.uid) return;
     try {
-      const dateStr = currentDate.toISOString().split('T')[0];
+      const dateStr = currentDate.toISOString().split("T")[0];
       const { data } = await api.get(`/meals/${user.uid}`, {
         params: { search_date: dateStr },
       });
@@ -152,7 +170,7 @@ useEffect(() => {
         setMeals(cleanedMeals);
       }
     } catch (error) {
-      console.error('Error fetching meals from backend:', error);
+      console.error("Error fetching meals from backend:", error);
       setMeals([]);
     }
   };
@@ -162,12 +180,12 @@ useEffect(() => {
     setLoading(true);
 
     try {
-      const { data: result } = await api.post('/openai/chat', {
+      const { data: result } = await api.post("/openai/chat", {
         user_id: user?.uid, // Dynamic user ID
         description: input,
         conversation_id: conversationId,
         user_feedback: userFeedback || undefined,
-        model: 'gpt-4',
+        model: "gpt-4",
         temperature: 0,
         max_tokens: 150,
       });
@@ -179,6 +197,8 @@ useEffect(() => {
         // Add AI's message to conversation history
         console.log("Message: " + result.message);
         setConversationHistory((prev) => [...prev, `App: ${result.message}`]);
+        // Add slight vibration feedback when receiving message
+        Vibration.vibrate(30);
       } else if (result.meal) {
         console.log("Meal: " + result.message);
         setPendingMeal(result.meal);
@@ -187,9 +207,11 @@ useEffect(() => {
         const mealInfo = `App: Found "${result.meal.description}" (${result.meal.calories} cal)`;
 
         setConversationHistory((prev) => [...prev, mealInfo]);
+        // Add slightly stronger vibration for meal confirmation
+        Vibration.vibrate(50);
       }
     } catch (error) {
-      console.error('Error:', error);
+      console.error("Error:", error);
     } finally {
       setLoading(false);
     }
@@ -198,8 +220,8 @@ useEffect(() => {
   // For saving confirmed meals
   const saveMeal = async (meal: MealEntry) => {
     try {
-      const dateStr = currentDate.toISOString().split('T')[0]; // Format: YYYY-MM-DD
-      const { data: savedMeal } = await api.post('/meals/', {
+      const dateStr = currentDate.toISOString().split("T")[0]; // Format: YYYY-MM-DD
+      const { data: savedMeal } = await api.post("/meals/", {
         user_id: user?.uid, // Dynamic user ID
         description: meal.description,
         calories: meal.calories,
@@ -212,7 +234,7 @@ useEffect(() => {
       setMeals((prev) => [savedMeal, ...prev]);
       return savedMeal;
     } catch (error) {
-      throw new Error('Failed to save meal');
+      throw new Error("Failed to save meal");
     }
   };
 
@@ -221,7 +243,7 @@ useEffect(() => {
     if (!inputText.trim()) return;
 
     const input = inputText.trim();
-    setInputText(''); // Clear input immediately
+    setInputText(""); // Clear input immediately
 
     // Add to conversation history
     if (awaitingConfirmation) {
@@ -230,9 +252,12 @@ useEffect(() => {
     } else {
       // Start a new conversation
       setConversationHistory([`You: ${input}`]);
-      setUserFeedback('');
+      setUserFeedback("");
     }
 
+    // Add slight vibration feedback when sending message
+    Vibration.vibrate(20);
+    
     await handleFoodInput(input);
   };
 
@@ -240,9 +265,9 @@ useEffect(() => {
     setPendingMeal(null);
     setConversationId(null);
     setAwaitingConfirmation(false);
-    setUserFeedback('');
+    setUserFeedback("");
     setConversationHistory([]);
-    setInputText('');
+    setInputText("");
   };
 
   const handleDeleteMeal = async (id: string) => {
@@ -250,7 +275,7 @@ useEffect(() => {
       await api.delete(`/meals/${id}`);
       setMeals((prev) => prev.filter((meal) => meal.id !== id));
     } catch (error) {
-      console.error('Failed to delete meal');
+      console.error("Failed to delete meal");
     }
   };
 
@@ -271,16 +296,16 @@ useEffect(() => {
       acc.sugar = (acc.sugar ?? 0) + (meal.sugar ?? 0);
       return acc;
     },
-    { calories: 0, protein: 0, carbs: 0, fat: 0, sugar: 0 }
+    { calories: 0, protein: 0, carbs: 0, fat: 0, sugar: 0 },
   );
- // Conditionally render LoginScreen or Main App
+  // Conditionally render LoginScreen or Main App
   if (!user) {
     return <LoginScreen onLogin={handleLogin} />;
   }
 
   if (isAppInitializing) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" />
       </View>
     );
@@ -292,37 +317,100 @@ useEffect(() => {
         <HamburgerMenu userProfile={userProfile} onSave={setUserProfile} />
         <View style={styles.dateNavigationContainer}>
           <Button title="←" onPress={() => changeDateByOffset(-1)} />
-          <Text style={isToday(currentDate) ? styles.currentDateHighlight : styles.currentDate}>{currentDate.toDateString()}</Text>
+          <Text
+            style={
+              isToday(currentDate)
+                ? styles.currentDateHighlight
+                : styles.currentDate
+            }
+          >
+            {currentDate.toDateString()}
+          </Text>
           <Button title="→" onPress={() => changeDateByOffset(1)} />
         </View>
         <Text style={styles.title}>Health App - Calorie Tracker</Text>
 
         <NutritionSummary totals={totals} nutritionNeeds={nutritionNeeds} />
-        <MealInput inputText={inputText} setInputText={setInputText} addMeal={addMeal} loading={loading} />
-        <ConversationHistory conversationHistory={conversationHistory} />
-        {awaitingConfirmation && pendingMeal ? (
-          <MealConfirmation
-            pendingMeal={pendingMeal}
-            saveMeal={saveMeal}
-            setConversationHistory={setConversationHistory}
-            setPendingMeal={setPendingMeal}
-            setConversationId={setConversationId}
-            setAwaitingConfirmation={setAwaitingConfirmation}
-            setUserFeedback={setUserFeedback}
-            cancelMeal={cancelMeal}
-          />
-        ) : (
-          <MealList meals={meals} onDeleteMeal={handleDeleteMeal} />
+
+        <MealList meals={meals} onDeleteMeal={handleDeleteMeal} />
+
+        {/* Floating action button to toggle chat - hide when chat is visible */}
+        {!isChatVisible && (
+          <TouchableOpacity style={styles.chatButton} onPress={toggleChat}>
+            <Text style={styles.chatButtonText}>💬</Text>
+          </TouchableOpacity>
         )}
+
+        {/* Chat overlay */}
+        <ChatOverlay
+          isVisible={isChatVisible}
+          onClose={() => setIsChatVisible(false)}
+          conversationHistory={conversationHistory}
+          inputText={inputText}
+          setInputText={setInputText}
+          addMeal={addMeal}
+          loading={loading}
+          pendingMeal={pendingMeal}
+          saveMeal={saveMeal}
+          setConversationHistory={setConversationHistory}
+          setPendingMeal={setPendingMeal}
+          setConversationId={setConversationId}
+          setAwaitingConfirmation={setAwaitingConfirmation}
+          setUserFeedback={setUserFeedback}
+          cancelMeal={cancelMeal}
+          awaitingConfirmation={awaitingConfirmation}
+        />
       </SafeAreaView>
     </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: '#fff' },
-  dateNavigationContainer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
-  currentDate: { fontSize: 18, fontWeight: '600', textAlign: 'center', marginHorizontal: 12 },
-  currentDateHighlight: { fontSize: 20, fontWeight: 'bold', textAlign: 'center', marginHorizontal: 12, color: '#007AFF' },
-  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 16, textAlign: 'center' },
+  container: { flex: 1, padding: 16, backgroundColor: "#fff" },
+  dateNavigationContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  currentDate: {
+    fontSize: 18,
+    fontWeight: "600",
+    textAlign: "center",
+    marginHorizontal: 12,
+  },
+  currentDateHighlight: {
+    fontSize: 20,
+    fontWeight: "bold",
+    textAlign: "center",
+    marginHorizontal: 12,
+    color: "#007AFF",
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  chatButton: {
+    position: "absolute",
+    bottom: 20,
+    right: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#007AFF",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
+    zIndex: 999,
+  },
+  chatButtonText: {
+    fontSize: 30,
+    color: "white",
+  },
 });
