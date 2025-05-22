@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { SafeAreaView, View, Text, Button, StyleSheet, ActivityIndicator } from 'react-native';
-import { GestureHandlerRootView, GestureDetector, Gesture } from 'react-native-gesture-handler';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import api from './api/axios';
 import { auth } from './firebase/firebaseConfig';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
@@ -198,6 +198,7 @@ useEffect(() => {
   // For saving confirmed meals
   const saveMeal = async (meal: MealEntry) => {
     try {
+      const dateStr = currentDate.toISOString().split('T')[0]; // Format: YYYY-MM-DD
       const { data: savedMeal } = await api.post('/meals/', {
         user_id: user?.uid, // Dynamic user ID
         description: meal.description,
@@ -206,6 +207,7 @@ useEffect(() => {
         carbs: meal.carbs,
         fat: meal.fat,
         sugar: meal.sugar,
+        timestamp: dateStr, // Use the selected date, not today's date
       });
       setMeals((prev) => [savedMeal, ...prev]);
       return savedMeal;
@@ -252,25 +254,12 @@ useEffect(() => {
     }
   };
 
-  const panGesture = Gesture.Pan()
-    .onEnd((event) => {
-      const { translationX } = event;
-      if (translationX > 50) {
-        // Swipe right: previous day
-        setCurrentDate((prev) => {
-          const newDate = new Date(prev);
-          newDate.setDate(newDate.getDate() - 1);
-          return newDate;
-        });
-      } else if (translationX < -50) {
-        // Swipe left: next day
-        setCurrentDate((prev) => {
-          const newDate = new Date(prev);
-          newDate.setDate(newDate.getDate() + 1);
-          return newDate;
-        });
-      }
-    });
+  // Define direct functions for changing dates
+  function changeDateByOffset(offset: number) {
+    const newDate = new Date(currentDate);
+    newDate.setDate(newDate.getDate() + offset);
+    setCurrentDate(newDate);
+  }
 
   // Calculate totals
   const totals = meals.reduce(
@@ -299,47 +288,33 @@ useEffect(() => {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <GestureDetector gesture={panGesture}>
-        <SafeAreaView style={styles.container}>
-          <HamburgerMenu userProfile={userProfile} onSave={setUserProfile} />
-          <View style={styles.dateNavigationContainer}>
-            <Button title="←" onPress={() => {
-              setCurrentDate(prev => {
-                const newDate = new Date(prev);
-                newDate.setDate(newDate.getDate() - 1);
-                return newDate;
-              });
-            }} />
-            <Text style={isToday(currentDate) ? styles.currentDateHighlight : styles.currentDate}>{currentDate.toDateString()}</Text>
-            <Button title="→" onPress={() => {
-              setCurrentDate(prev => {
-                const newDate = new Date(prev);
-                newDate.setDate(newDate.getDate() + 1);
-                return newDate;
-              });
-            }} />
-          </View>
-          <Text style={styles.title}>Health App - Calorie Tracker</Text>
+      <SafeAreaView style={styles.container}>
+        <HamburgerMenu userProfile={userProfile} onSave={setUserProfile} />
+        <View style={styles.dateNavigationContainer}>
+          <Button title="←" onPress={() => changeDateByOffset(-1)} />
+          <Text style={isToday(currentDate) ? styles.currentDateHighlight : styles.currentDate}>{currentDate.toDateString()}</Text>
+          <Button title="→" onPress={() => changeDateByOffset(1)} />
+        </View>
+        <Text style={styles.title}>Health App - Calorie Tracker</Text>
 
-          <NutritionSummary totals={totals} nutritionNeeds={nutritionNeeds} />
-          <MealInput inputText={inputText} setInputText={setInputText} addMeal={addMeal} loading={loading} />
-          <ConversationHistory conversationHistory={conversationHistory} />
-          {awaitingConfirmation && pendingMeal ? (
-            <MealConfirmation
-              pendingMeal={pendingMeal}
-              saveMeal={saveMeal}
-              setConversationHistory={setConversationHistory}
-              setPendingMeal={setPendingMeal}
-              setConversationId={setConversationId}
-              setAwaitingConfirmation={setAwaitingConfirmation}
-              setUserFeedback={setUserFeedback}
-              cancelMeal={cancelMeal}
-            />
-          ) : (
-            <MealList meals={meals} onDeleteMeal={handleDeleteMeal} />
-          )}
-        </SafeAreaView>
-      </GestureDetector>
+        <NutritionSummary totals={totals} nutritionNeeds={nutritionNeeds} />
+        <MealInput inputText={inputText} setInputText={setInputText} addMeal={addMeal} loading={loading} />
+        <ConversationHistory conversationHistory={conversationHistory} />
+        {awaitingConfirmation && pendingMeal ? (
+          <MealConfirmation
+            pendingMeal={pendingMeal}
+            saveMeal={saveMeal}
+            setConversationHistory={setConversationHistory}
+            setPendingMeal={setPendingMeal}
+            setConversationId={setConversationId}
+            setAwaitingConfirmation={setAwaitingConfirmation}
+            setUserFeedback={setUserFeedback}
+            cancelMeal={cancelMeal}
+          />
+        ) : (
+          <MealList meals={meals} onDeleteMeal={handleDeleteMeal} />
+        )}
+      </SafeAreaView>
     </GestureHandlerRootView>
   );
 }

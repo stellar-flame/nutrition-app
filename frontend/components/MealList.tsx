@@ -1,7 +1,7 @@
 import React from 'react';
 import { FlatList, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { MealEntry } from '../types';
-import { Swipeable } from 'react-native-gesture-handler';
+import ReanimatedSwipeable from 'react-native-gesture-handler/ReanimatedSwipeable';
 
 interface MealListProps {
   meals: MealEntry[];
@@ -22,7 +22,7 @@ const MealList: React.FC<MealListProps> = ({ meals, onDeleteMeal }) => (
     data={meals}
     keyExtractor={(item) => item.id.toString()}
     renderItem={({ item }) => (
-      <Swipeable
+      <ReanimatedSwipeable
         renderRightActions={() => renderRightActions(item.id, onDeleteMeal)}
       >
         <View style={styles.mealItem}>
@@ -35,14 +35,21 @@ const MealList: React.FC<MealListProps> = ({ meals, onDeleteMeal }) => (
             </Text>
           </View>
         </View>
-      </Swipeable>
+      </ReanimatedSwipeable>
     )}
     ListEmptyComponent={<Text style={styles.emptyText}>No meals logged for this date.</Text>}
   />
 );
 
 const styles = StyleSheet.create({
-  mealItem: { flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomColor: '#eee', borderBottomWidth: 1 },
+  mealItem: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    padding: 12, 
+    borderBottomColor: '#eee', 
+    borderBottomWidth: 1,
+    backgroundColor: '#fff'
+  },
   mealDescription: { fontSize: 16, fontWeight: '500' },
   mealNutrition: { fontSize: 14, color: '#555' },
   emptyText: { textAlign: 'center', color: '#999', marginTop: 20 },
@@ -50,9 +57,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#F44336',
-    width: 60,
+    width: 80,
     height: '100%',
-    borderRadius: 0,
   },
   deleteButtonText: {
     color: 'white',
