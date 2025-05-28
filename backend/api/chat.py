@@ -1,14 +1,14 @@
 from fastapi import APIRouter, HTTPException
 from langchain_openai import ChatOpenAI
-from langchain.schema import SystemMessage
-from langchain_community.chat_message_histories import ChatMessageHistory
+
+from langchain.schema import SystemMessage, HumanMessage, AIMessage
+from langchain.schema.messages import BaseMessage
+
 from datetime import datetime
 import os
 import json
-import re
 from dotenv import load_dotenv
 from models import ChatRequest, ChatResponse
-from utils import extract_number
 
 router = APIRouter()
 
@@ -17,87 +17,159 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 active_conversations = {}
 
+
+
 class ConversationState:
     def __init__(self):
-        self.history = ChatMessageHistory()
-        self.last_activity = datetime.utcnow()
+        self.history: list[BaseMessage] = []
+        self.last_activity: datetime = datetime.utcnow()
+
+    def add_message(self, msg: BaseMessage):
+        self.history.append(msg)
+
+    def add_user(self, content: str):
+        self.add_message(HumanMessage(content=content))
+
+    def add_system(self, content: str):
+        self.add_message(SystemMessage(content=content))
+
+    def add_ai(self, content: str):
+        self.add_message(AIMessage(content=content))
+
+# --- Define the function schema for OpenAI ---
+nutrition_function = {
+    "name": "extract_nutrition",
+    "description": "Estimate nutrition data from a food description. Always include numerical values for all nutritional fields.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "calories": {
+                "type": "number",
+                "description": "Estimated calories in the food item"
+            },
+            "protein": {
+                "type": "number", 
+                "description": "Protein content in grams"
+            },
+            "fiber": {
+                "type": "number",
+                "description": "Dietary fiber in grams"
+            }, 
+            "carbs": {
+                "type": "number",
+                "description": "Total carbohydrates in grams"
+            },
+            "fat": {
+                "type": "number",
+                "description": "Total fat content in grams"
+            },
+            "sugar": {
+                "type": "number",
+                "description": "Sugar content in grams"
+            },
+            "description": {
+                "type": "string",
+                "description": "Normalized food description"
+            },
+            "assumptions": {
+                "type": "string",
+                "description": "Any assumptions made about portion size, brand, or preparation method"
+            },
+        },
+        "required": ["calories", "protein", "fiber", "carbs", "fat", "sugar", "description"]
+    }
+}
+
 
 def cleanup_old_conversations():
-    now = datetime.utcnow()
+    now = datetime.now()
     for conv_id in list(active_conversations.keys()):
         if (now - active_conversations[conv_id].last_activity).total_seconds() > 300:
             del active_conversations[conv_id]
 
 @router.post("/openai/chat", response_model=ChatResponse)
 async def openai_chat(request: ChatRequest):
-    if not OPENAI_API_KEY:
-        raise HTTPException(status_code=500, detail="OpenAI API key not configured")
-    chat = ChatOpenAI(model_name=request.model, temperature=request.temperature, max_tokens=request.max_tokens)
-    cleanup_old_conversations()
+    chat = ChatOpenAI(
+        model_name=request.model,
+        temperature=request.temperature,
+        max_tokens=request.max_tokens,
+        openai_api_key=OPENAI_API_KEY,  # Ideally use env var
+        request_timeout=30,
+        model_kwargs={"tools": [{"type": "function", "function": nutrition_function}]},
+        streaming=False
+    )
+
     conversation_id = request.conversation_id or datetime.utcnow().isoformat()
-    if conversation_id not in active_conversations:
-        conversation = ConversationState()
-        conversation.history.add_message(SystemMessage(content=(
-            "You are a nutritional assistant. Analyze food descriptions and provide estimated nutritional information, even if details are limited. "
-            "If you can determine or reasonably assume the nutritional content, respond with a JSON object containing: "
-            "calories (number), protein (number in grams), carbs (number in grams), fat (number in grams), sugar (number in grams), "
-            "description (string), assumptions (string). Do not include units in the numbers, just return numeric values. "
-            "Example: {\"calories\": 133, \"protein\": 4, \"carbs\": 25, \"fat\": 1.5, \"sugar\": 2, \"description\": \"2 slices of white bread\", \"assumptions\": \"50g slice\"}. "
-            "Keep 'assumptions' short. If the item is from a restaurant or brand, use typical serving sizes and similar foods to estimate. "
-            "If absolutely no assumptions can be made, only then ask for clarification. Keep any explanations short and sweet."
-        )))
-        active_conversations[conversation_id] = conversation
-    else:
-        conversation = active_conversations[conversation_id]
+    conversation = active_conversations.get(conversation_id, ConversationState())
+
+    if not conversation.history:
+        conversation.add_system((
+            "You are a nutritional assistant. Use the extract_nutrition function when estimating values. "
+            "Always provide numeric values for calories, protein, carbs, fat, sugar, and fiber. "
+            "Make reasonable estimations based on standard portions when specifics aren't provided. "
+            "Respond concisely and only ask for clarification if absolutely needed."
+            "Any assumptions made about portion size, brand, or preparation method should be included in the assumptions.\n\n"
+            "\n\nALWAYS USE THE extract_nutrition FUNCTION to process food descriptions."
+        ))
+
+    content = (
+        f"I previously said: {request.description}\nLet me clarify: {request.user_feedback}"
+        if request.user_feedback else request.description
+    )
+    conversation.add_user(content)
     conversation.last_activity = datetime.utcnow()
-    if request.user_feedback:
-        conversation.history.add_user_message(
-            f"I previously said: {request.description}\nLet me clarify: {request.user_feedback}"
-        )
-    else:
-        conversation.history.add_user_message(request.description)
+
     try:
-        response = chat.invoke(conversation.history.messages)
-        conversation.history.add_ai_message(response.content)
-        content = response.content.strip()
         try:
-            match = re.search(r"(\{.*?\})", content, re.DOTALL)
-            if not match:
-                raise ValueError("No JSON block found")
-            json_text = match.group(1)
-            nutrition_raw = json.loads(json_text)
-            nutrition = {
-                "calories": extract_number(nutrition_raw.get("calories", 0)),
-                "protein": extract_number(nutrition_raw.get("protein", 0)),
-                "carbs": extract_number(nutrition_raw.get("carbs", 0)),
-                "fat": extract_number(nutrition_raw.get("fat", 0)),
-                "sugar": extract_number(nutrition_raw.get("sugar", 0)),
+            response = chat.invoke(conversation.history)
+            conversation.add_ai(response.content or "")
+        except Exception as e:
+            print(f"Error during chat.invoke: {e}")
+            raise
+
+        tool_calls = getattr(response, "tool_calls", [])
+        print(f"Tool calls: {tool_calls}")
+        
+        if not tool_calls:
+            return ChatResponse(
+                message=response.content.strip(),
+                conversation_id=conversation_id
+            )
+
+        # Handle different response structures
+        try:
+            meal_data = tool_calls[0]['args'] 
+            print(f"Extracted meal data: {meal_data}")
+            
+            # Ensure all required fields are present with default values
+            nutrition_estimate = {
+                "id": None,  # ID will be set later when saving to DB
+                "user_id": request.user_id,
+                "timestamp": datetime.now().isoformat(),
+                "calories": meal_data.get("calories", 0),   
+                "protein": meal_data.get("protein", 0),
+                "fiber": meal_data.get("fiber", 0),     
+                "carbs": meal_data.get("carbs", 0),
+                "fat": meal_data.get("fat", 0),
+                "sugar": meal_data.get("sugar", 0),
+                "description": meal_data.get("description", request.description),
+                "assumptions": meal_data.get("assumptions", None)
             }
-            description_normalized = nutrition_raw.get("description", request.description)
-            assumptions_normalized = nutrition_raw.get("assumptions")
+            
+
+            active_conversations[conversation_id] = conversation
+
+            return ChatResponse(meal=nutrition_estimate, conversation_id=conversation_id)
+        except Exception as e:
+            print(f"Error processing tool call data: {e}")
             return ChatResponse(
-                meal={
-                    "id": None,
-                    "user_id": request.user_id,
-                    "description": description_normalized,
-                    "assumptions": assumptions_normalized,
-                    "calories": nutrition["calories"],
-                    "protein": nutrition["protein"],
-                    "carbs": nutrition["carbs"],
-                    "fat": nutrition["fat"],
-                    "sugar": nutrition["sugar"],
-                    "timestamp": datetime.utcnow().isoformat()
-                },
+                message="I had trouble processing the nutrition data. Could you try providing more details?",
                 conversation_id=conversation_id
             )
-        except (ValueError, json.JSONDecodeError):
-            return ChatResponse(
-                message=content,
-                meal=None,
-                conversation_id=conversation_id
-            )
-    except Exception:
+
+    except Exception as e:
+        print(f"Error processing conversation {conversation_id}: {e}")
         return ChatResponse(
-            message="I couldn't process that. Could you try rephrasing?",
+            message="I couldn’t process that. Could you try rephrasing?",
             conversation_id=conversation_id
         )

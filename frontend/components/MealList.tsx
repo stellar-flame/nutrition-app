@@ -29,7 +29,7 @@ const MealList: React.FC<MealListProps> = ({ meals, onDeleteMeal }) => (
           <View style={{ flex: 1 }}>
             <Text style={styles.mealDescription}>{item.description}</Text>
             <Text style={styles.mealNutrition}>
-              Calories: {item.calories.toFixed(0)}, Protein: {item.protein?.toFixed(0)},
+              Calories: {item.calories.toFixed(0)}, Protein: {item.protein?.toFixed(0)}, Fiber: {item.fiber?.toFixed(0)},
               Carbs: {item.carbs?.toFixed(0)}, Fat: {item.fat?.toFixed(0)},
               Sugar: {item.sugar?.toFixed(0)}
             </Text>

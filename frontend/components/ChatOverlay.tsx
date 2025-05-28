@@ -265,7 +265,7 @@ const ChatOverlay: React.FC<ChatOverlayProps> = ({
                       <Text style={styles.confirmationText}>{pendingMeal.assumptions}</Text>
                     )}
                     <Text style={styles.confirmationText}>
-                      Calories: {pendingMeal.calories.toFixed(0)}, Protein: {pendingMeal.protein?.toFixed(0)},
+                      Calories: {pendingMeal.calories.toFixed(0)}, Protein: {pendingMeal.protein?.toFixed(0)},Fiber: {pendingMeal.fiber?.toFixed(0)},
                       Carbs: {pendingMeal.carbs?.toFixed(0)}, Fat: {pendingMeal.fat?.toFixed(0)},
                       Sugar: {pendingMeal.sugar?.toFixed(0)}
                     </Text>

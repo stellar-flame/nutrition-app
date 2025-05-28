@@ -34,17 +34,12 @@ def calculate_age(dob_str: str) -> int:
 
 def verify_firebase_token(authorization: str = Header(...)) -> str:
     try:
-        # Log the Authorization header for debugging
-        print(f"Authorization header: {authorization}")
-
         # Extract the token from the "Bearer <token>" format
         token = authorization.split(" ")[1]
-        print(f"Extracted token: {token}")
-
+       
         # Verify the token using Firebase Admin SDK
         decoded_token = firebase_auth.verify_id_token(token)
-        print(f"Decoded token: {decoded_token}")
-
+       
         return decoded_token["uid"]  # Return the UID from the decoded token
     except IndexError:
         raise HTTPException(status_code=422, detail="Invalid Authorization header format")

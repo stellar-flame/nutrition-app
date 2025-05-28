@@ -5,6 +5,7 @@ export interface MealEntry {
   assumptions: string;
   calories: number;
   protein?: number;
+  fiber?: number;
   carbs?: number;
   fat?: number;
   sugar?: number;
@@ -22,6 +23,7 @@ export interface UserProfile {
 export interface NutritionNeeds {
   calories: number;
   protein: number;
+  fiber: number;
   fat: number;
   carbs: number;
   sugar: number;

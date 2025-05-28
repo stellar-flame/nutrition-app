@@ -11,13 +11,14 @@ def create_meal(meal: MealCreate):
     timestamp = meal.timestamp or datetime.utcnow().date().isoformat()
     try:
         cursor.execute("""
-            INSERT INTO meals (user_id, description, calories, protein, carbs, fat, sugar, timestamp)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO meals (user_id, description, calories, protein, fiber, carbs, fat, sugar, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             meal.user_id,
             meal.description,
             meal.calories,
             meal.protein,
+            meal.fiber,
             meal.carbs,
             meal.fat,
             meal.sugar,

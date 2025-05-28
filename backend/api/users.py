@@ -35,12 +35,14 @@ def get_nutrition_needs(user_id: str = Path(..., description="User UID to fetch 
     bmr = calculate_bmr(row["weight"], row["height"], age, sex="male")
     daily_calories = floor(bmr * 1.2)
     protein_g = floor(row["weight"] * 1.2)
+    fiber_g = floor(row["weight"] * 0.025)
     fat_g = floor((daily_calories * 0.25) / 9)
     carbs_g = floor((daily_calories - (protein_g * 4 + fat_g * 9)) / 4)
     sugar_g = floor(carbs_g * 0.1)
     return {
         "calories": daily_calories,
         "protein": protein_g,
+        "fiber": fiber_g,
         "fat": fat_g,
         "carbs": carbs_g,
         "sugar": sugar_g,

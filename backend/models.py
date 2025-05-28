@@ -28,11 +28,13 @@ class MealCreate(BaseModel):
     user_id: str
     description: str
     calories: float
+    fiber: float
     protein: float
     carbs: float
     fat: float
     sugar: float
     timestamp: Optional[str] = None
+
 
 class MealResponse(BaseModel):
     id: int
@@ -41,6 +43,7 @@ class MealResponse(BaseModel):
     assumptions: Optional[str] = None
     calories: float
     protein: float
+    fiber: float
     carbs: float
     fat: float
     sugar: float

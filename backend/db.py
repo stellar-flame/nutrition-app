@@ -18,6 +18,7 @@ def init_db():
             description TEXT NOT NULL,
             calories REAL NOT NULL,
             protein REAL,
+            fiber REAL,
             carbs REAL,
             fat REAL,
             sugar REAL,

@@ -48,7 +48,6 @@ const LoginScreen = ({ onLogin }: { onLogin: (idToken: string) => void }) => {
             .then(async (userCredential) => {
                 // Signed in 
                 const idToken = await userCredential.user.getIdToken();
-                console.log('User logged in:', userCredential.user);
                 onLogin(idToken);   
             })
         .catch((error) => {
@@ -58,12 +57,6 @@ const LoginScreen = ({ onLogin }: { onLogin: (idToken: string) => void }) => {
             console.error('Error code:', errorCode);
             console.error('Error message:', errorMessage);
         });
-        // console.log('Logging in with:', { email, password });
-        // const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        // console.log('User logged in:', userCredential);
-        //  const idToken = await userCredential.user.getIdToken();
-        // console.log('User logged in:', userCredential.user);
-        // onLogin(idToken);
       }
     } catch (error) {
         console.error('Authentication error:', error);

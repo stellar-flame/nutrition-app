@@ -64,6 +64,7 @@ export default function App() {
   const [nutritionNeeds, setNutritionNeeds] = useState<NutritionNeeds>({
     calories: 0,
     protein: 0,
+    fiber: 0,
     fat: 0,
     carbs: 0,
     sugar: 0,
@@ -98,7 +99,6 @@ export default function App() {
 
   const handleLogin = async (idToken: string) => {
     try {
-      console.log("Logging in with ID token:", idToken);
       // Send the ID token to the backend for verification
       const { data } = await api.get("/auth/verify", {
         headers: { Authorization: `Bearer ${idToken}` },
@@ -142,6 +142,7 @@ export default function App() {
       setNutritionNeeds({
         calories: data.calories,
         protein: data.protein,
+        fiber: data.fiber,
         fat: data.fat,
         carbs: data.carbs,
         sugar: data.sugar,
@@ -163,6 +164,7 @@ export default function App() {
           ...meal,
           calories: Number(meal.calories),
           protein: Number(meal.protein),
+          fiber: Number(meal.fiber),
           carbs: Number(meal.carbs),
           fat: Number(meal.fat),
           sugar: Number(meal.sugar),
@@ -226,6 +228,7 @@ export default function App() {
         description: meal.description,
         calories: meal.calories,
         protein: meal.protein,
+        fiber: meal.fiber,
         carbs: meal.carbs,
         fat: meal.fat,
         sugar: meal.sugar,
@@ -291,12 +294,13 @@ export default function App() {
     (acc, meal) => {
       acc.calories = (acc.calories ?? 0) + (meal.calories ?? 0);
       acc.protein = (acc.protein ?? 0) + (meal.protein ?? 0);
+      acc.fiber = (acc.fiber ?? 0) + (meal.fiber ?? 0);
       acc.carbs = (acc.carbs ?? 0) + (meal.carbs ?? 0);
       acc.fat = (acc.fat ?? 0) + (meal.fat ?? 0);
       acc.sugar = (acc.sugar ?? 0) + (meal.sugar ?? 0);
       return acc;
     },
-    { calories: 0, protein: 0, carbs: 0, fat: 0, sugar: 0 },
+    { calories: 0, protein: 0, fiber: 0, carbs: 0, fat: 0, sugar: 0 },
   );
   // Conditionally render LoginScreen or Main App
   if (!user) {
