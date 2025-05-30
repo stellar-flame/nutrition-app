@@ -29,10 +29,6 @@ interface ChatOverlayProps {
   pendingMeal: MealEntry | null;
   saveMeal: (meal: MealEntry) => Promise<any>;
   setConversationHistory: React.Dispatch<React.SetStateAction<string[]>>;
-  setPendingMeal: (meal: MealEntry | null) => void;
-  setConversationId: (id: string | null) => void;
-  setAwaitingConfirmation: (b: boolean) => void;
-  setUserFeedback: (s: string) => void;
   cancelMeal: () => void;
   awaitingConfirmation: boolean;
 }
@@ -52,10 +48,6 @@ const ChatOverlay: React.FC<ChatOverlayProps> = ({
   pendingMeal,
   saveMeal,
   setConversationHistory,
-  setPendingMeal,
-  setConversationId,
-  setAwaitingConfirmation,
-  setUserFeedback,
   cancelMeal,
   awaitingConfirmation
 }) => {
@@ -276,11 +268,6 @@ const ChatOverlay: React.FC<ChatOverlayProps> = ({
                           try {
                             const savedMeal = await saveMeal(pendingMeal);
                             setConversationHistory((prev) => [...prev, `Meal logged: ${savedMeal.description}`]);
-                            setPendingMeal(null);
-                            setConversationId(null);
-                            setAwaitingConfirmation(false);
-                            setUserFeedback('');
-                            // Close the chat overlay after meal is confirmed
                             handleClose();
                           } catch (error) {
                             console.error('Error:', error);

@@ -235,6 +235,22 @@ export default function App() {
         timestamp: dateStr, // Use the selected date, not today's date
       });
       setMeals((prev) => [savedMeal, ...prev]);
+
+       // If we have a conversation ID, delete the thread
+      if (conversationId) {
+        try {
+          await api.delete(`/openai/thread/${conversationId}`);
+          console.log("Thread deleted successfully");
+        } catch (threadError) {
+          console.error("Failed to delete thread:", threadError);
+          // Non-blocking error - we still want to continue even if thread deletion fails
+        }
+      }
+      setPendingMeal(null);
+      setConversationId(null);
+      setAwaitingConfirmation(false);
+      setUserFeedback('');
+    
       return savedMeal;
     } catch (error) {
       throw new Error("Failed to save meal");
@@ -357,10 +373,6 @@ export default function App() {
           pendingMeal={pendingMeal}
           saveMeal={saveMeal}
           setConversationHistory={setConversationHistory}
-          setPendingMeal={setPendingMeal}
-          setConversationId={setConversationId}
-          setAwaitingConfirmation={setAwaitingConfirmation}
-          setUserFeedback={setUserFeedback}
           cancelMeal={cancelMeal}
           awaitingConfirmation={awaitingConfirmation}
         />
