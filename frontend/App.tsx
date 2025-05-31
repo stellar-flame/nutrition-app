@@ -250,6 +250,7 @@ export default function App() {
       setConversationId(null);
       setAwaitingConfirmation(false);
       setUserFeedback('');
+      setConversationHistory([]); // Always clear conversation history after saving a meal
     
       return savedMeal;
     } catch (error) {
@@ -266,8 +267,13 @@ export default function App() {
 
     // Add to conversation history
     if (awaitingConfirmation) {
+      // If we're awaiting confirmation, append to history
       setConversationHistory((prev) => [...prev, `You: ${input}`]);
       setUserFeedback(input);
+    } else if (conversationId && conversationHistory.length > 0) {
+      // If we have an existing conversation, append to history
+      setConversationHistory((prev) => [...prev, `You: ${input}`]);
+      setUserFeedback("");
     } else {
       // Start a new conversation
       setConversationHistory([`You: ${input}`]);
@@ -280,12 +286,19 @@ export default function App() {
     await handleFoodInput(input);
   };
 
-  const cancelMeal = () => {
+  const cancelMeal = (keepHistory: boolean = false) => {
     setPendingMeal(null);
-    setConversationId(null);
+    setConversationId(null); // Always clear conversation ID
     setAwaitingConfirmation(false);
     setUserFeedback("");
-    setConversationHistory([]);
+    
+    // Only clear conversation history when:
+    // 1. keepHistory is false AND
+    // 2. We're not in the middle of adding more information to a pending meal
+    if (!keepHistory) {
+      setConversationHistory([]);
+    }
+    
     setInputText("");
   };
 

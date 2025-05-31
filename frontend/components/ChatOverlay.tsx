@@ -29,7 +29,7 @@ interface ChatOverlayProps {
   pendingMeal: MealEntry | null;
   saveMeal: (meal: MealEntry) => Promise<any>;
   setConversationHistory: React.Dispatch<React.SetStateAction<string[]>>;
-  cancelMeal: () => void;
+  cancelMeal: (keepHistory?: boolean) => void;
   awaitingConfirmation: boolean;
 }
 
@@ -266,8 +266,8 @@ const ChatOverlay: React.FC<ChatOverlayProps> = ({
                         style={[styles.iconButton, styles.confirmButton]}
                         onPress={async () => {
                           try {
-                            const savedMeal = await saveMeal(pendingMeal);
-                            setConversationHistory((prev) => [...prev, `Meal logged: ${savedMeal.description}`]);
+                            await saveMeal(pendingMeal);
+                            setConversationHistory([]); // Explicitly clear conversation history
                             handleClose();
                           } catch (error) {
                             console.error('Error:', error);
@@ -279,7 +279,10 @@ const ChatOverlay: React.FC<ChatOverlayProps> = ({
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[styles.iconButton, styles.cancelButton]}
-                        onPress={cancelMeal}
+                        onPress={() => {
+                          cancelMeal(false); // Always clear history when canceling a meal
+                          setConversationHistory([]); // Explicitly clear conversation history here too
+                        }}
                       >
                         <Text style={styles.iconButtonText}>✗</Text>
                       </TouchableOpacity>
@@ -319,7 +322,17 @@ const ChatOverlay: React.FC<ChatOverlayProps> = ({
             />
             <TouchableOpacity
               style={[styles.sendButton, loading && styles.sendButtonDisabled]}
-              onPress={addMeal}
+              onPress={() => {
+                // If there's a pending meal, we want to keep the conversation 
+                // because the user is providing clarification/feedback
+                if (awaitingConfirmation && pendingMeal) {
+                  // Don't cancel the meal, just add to the conversation
+                  // This allows user to provide clarification about the pending meal
+                } else {
+                  // For regular messages without pending meal, proceed normally
+                }
+                addMeal(); // This will handle both cases now
+              }}
               disabled={loading}
             >
               {loading ? (
