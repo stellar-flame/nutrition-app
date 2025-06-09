@@ -13,14 +13,11 @@ router = APIRouter()
 
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# Store the assistant ID in an environment variable if it exists
+ASSISTANT_ID = os.getenv("OPENAI_ASSISTANT_ID")
 
-client = OpenAI()
-
-assistant = client.beta.assistants.create(
-  name="Nutrition Assistant",
-  description="Helps estimate nutrition from meal descriptions.",
-  model="gpt-4o",
-  instructions=(
+# Define the assistant instructions - will be used when creating a new assistant
+ASSISTANT_INSTRUCTIONS = (
     "You are a nutrition assistant. When the user describes a meal, respond using JSON with the following fields:\n\n"
     "{\n"
     '  "intent": "log_food",\n'
@@ -40,12 +37,50 @@ assistant = client.beta.assistants.create(
     ' "response": "...(explaining why you can\'t estimate the value, e.g., \'Is it whole grain or white bread?\')",\n'
     "}\n\n"
     "Respond with only the JSON block, no extra commentary or explanation."
-  )
 )
+
+
+def get_assistant_id():
+    """
+    Get or create an OpenAI assistant.
+    Returns the assistant ID which can be reused in subsequent requests.
+    """
+    # Create a new client for each request
+    client = OpenAI(api_key=OPENAI_API_KEY)
+    
+    # If we already have an assistant ID, use it
+    if ASSISTANT_ID:
+        try:
+            # Verify the assistant exists
+            assistant = client.beta.assistants.retrieve(ASSISTANT_ID)
+            return assistant.id
+        except Exception as e:
+            print(f"Error retrieving existing assistant: {e}")
+            # Continue and create a new assistant
+    
+    # Create a new assistant
+    assistant = client.beta.assistants.create(
+        name="Nutrition Assistant",
+        description="Helps estimate nutrition from meal descriptions.",
+        model="gpt-4o",
+        instructions=ASSISTANT_INSTRUCTIONS
+    )
+    
+    # Print the assistant ID so it can be saved as an environment variable
+    print(f"Created new assistant with ID: {assistant.id}")
+    print("Set this ID as OPENAI_ASSISTANT_ID in your environment variables to reuse it.")
+    
+    return assistant.id
 
 
 @router.post("/openai/chat", response_model=ChatResponse)
 async def openai_chat(request: ChatRequest):
+    # Create a new OpenAI client for each request
+    client = OpenAI(api_key=OPENAI_API_KEY)
+    
+    # Get or create assistant
+    assistant_id = get_assistant_id()
+    
     if request.conversation_id:
         thread = client.beta.threads.retrieve(request.conversation_id)
     else:
@@ -59,7 +94,7 @@ async def openai_chat(request: ChatRequest):
 
     run = client.beta.threads.runs.create_and_poll(
         thread_id=thread.id,
-        assistant_id=assistant.id
+        assistant_id=assistant_id
     )
     if run.status == "completed":
         messages = client.beta.threads.messages.list(thread_id=thread.id)
@@ -111,6 +146,9 @@ async def openai_chat(request: ChatRequest):
 @router.delete("/openai/thread/{conversation_id}", status_code=200)
 async def delete_thread(conversation_id: str):
     try:
+        # Create a new OpenAI client for each request
+        client = OpenAI(api_key=OPENAI_API_KEY)
+        
         # Delete the thread using the OpenAI client
         client.beta.threads.delete(conversation_id)
         return {"status": "success", "message": "Thread deleted successfully"}
