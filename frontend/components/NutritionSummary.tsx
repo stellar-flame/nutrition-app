@@ -3,13 +3,13 @@ import { View, Text, StyleSheet } from 'react-native';
 import { NutritionNeeds } from '../types';
 
 interface NutritionSummaryProps {
-  totals: { calories: number; protein: number; fat: number; carbs: number; sugar: number };
+  totals: { calories: number; protein: number; fiber: number, fat: number; carbs: number; sugar: number };
   nutritionNeeds: NutritionNeeds;
 }
 
 const NutritionSummary: React.FC<NutritionSummaryProps> = ({ totals, nutritionNeeds }) => (
   <View style={styles.nutritionTable}>
-    {['calories', 'protein', 'carbs', 'fat', 'sugar'].map((key) => (
+    {['calories', 'protein', 'fiber', 'carbs', 'fat', 'sugar'].map((key) => (
       <View style={styles.nutritionRow} key={key}>
         <Text style={styles.nutritionLabel}>{key.charAt(0).toUpperCase() + key.slice(1)}{key !== 'calories' ? ' (g)' : ''}</Text>
         <View style={styles.nutritionValuesContainer}>

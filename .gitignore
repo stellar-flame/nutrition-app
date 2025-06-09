@@ -37,8 +37,13 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
-# environ
+# Environment variables and secrets
 .env
+.env.*
+*.env
+!.env.example
+!*.env.example
+backend/firebase-credentials/*.json
 
 # db
 *.db
