@@ -17,12 +17,21 @@ def create_user_profile_endpoint(user: UserProfile, db: Session = Depends(get_db
 def get_user_profile_endpoint(user_id: str = Path(..., description="User UID to fetch profile for"), 
                              db: Session = Depends(get_db)):
     print(f"Fetching user profile for UID: {user_id}")
-    user = get_user_profile(user_id, db)
-    if user is None:
+    db_user = get_user_profile(user_id, db)
+    if db_user is None:
         raise HTTPException(status_code=404, detail="User not found")
     
     # With SQLAlchemy models, we can directly return the model instance
-    return user
+    print(f"User profile found: {db_user}")
+    # Explicitly create UserProfileResponse
+    return UserProfileResponse(
+        id=db_user.id,
+        first_name=db_user.first_name,
+        last_name=db_user.last_name,
+        date_of_birth=str(db_user.date_of_birth),  # Convert date to string
+        weight=db_user.weight,
+        height=db_user.height
+    )
 
 @router.get("/users/{user_id}/nutrition-needs")
 def get_nutrition_needs(

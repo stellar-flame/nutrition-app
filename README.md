@@ -1,6 +1,6 @@
-# 🍎 HealthAI – Smart Nutrition Tracker
+# 🍎 NutritionAI – Smart Nutrition Tracker
 
-**HealthAI** is a mobile app that lets users log meals naturally (text or voice) and uses OpenAI to extract nutritional information. It tracks daily totals, offers personalized insights, and is built with modern cloud-first architecture.
+**NutritionAI** is a mobile app that lets users log meals naturally (text or voice) and uses OpenAI to extract nutritional information. It tracks daily totals, offers personalized insights, and is built with modern cloud-first architecture.
 
 ---
 

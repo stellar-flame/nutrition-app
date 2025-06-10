@@ -27,8 +27,22 @@ def clear_meals_endpoint(user_id: str, db: Session = Depends(get_db)):
 
 @router.post("/meals/", response_model=MealResponse)
 def create_meal_endpoint(meal: MealCreate, db: Session = Depends(get_db)):
+    print(meal)
     db_meal, timestamp = create_meal(meal, db)
-    return db_meal
+     # Explicitly create MealResponse
+    return MealResponse(
+        id=db_meal.id,
+        user_id=db_meal.user_id,
+        description=db_meal.description,
+        calories=db_meal.calories,
+        protein=db_meal.protein,
+        fiber=db_meal.fiber,
+        carbs=db_meal.carbs,
+        fat=db_meal.fat,
+        sugar=db_meal.sugar,
+        assumptions=db_meal.assumptions,
+        timestamp=str(db_meal.timestamp)  # Convert datetime to string
+    )
 
 @router.delete("/meals/{meal_id}")
 def delete_meal_endpoint(meal_id: int, db: Session = Depends(get_db)):

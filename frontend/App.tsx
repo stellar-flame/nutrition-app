@@ -135,6 +135,31 @@ export default function App() {
     }
   };
 
+  const updateUserProfile = async (updatedProfile: UserProfile) => {
+    if (!user?.uid) return;
+    try {
+      // Convert front-end model to back-end model
+      const backendProfile = {
+        first_name: updatedProfile.firstName,
+        last_name: updatedProfile.lastName,
+        date_of_birth: updatedProfile.dateOfBirth, // Keeping as string, backend will parse
+        weight: parseFloat(updatedProfile.weight),
+        height: parseFloat(updatedProfile.height),
+      };
+
+      // Send updated profile to backend
+      await api.put(`/users/${user.uid}`, backendProfile);
+
+      // Update local state
+      setUserProfile(updatedProfile);
+      console.log("Profile updated successfully");
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      // Fetch current profile to reset state if update failed
+      fetchUserProfile();
+    }
+  };
+
   const fetchNutritionNeeds = async () => {
     if (!user?.uid) return;
     try {
@@ -155,6 +180,7 @@ export default function App() {
   const fetchMealsFromBackend = async () => {
     if (!user?.uid) return;
     try {
+      // Keep using just the date part for searching meals by day
       const dateStr = currentDate.toISOString().split("T")[0];
       const { data } = await api.get(`/meals/${user.uid}`, {
         params: { search_date: dateStr },
@@ -222,7 +248,8 @@ export default function App() {
   // For saving confirmed meals
   const saveMeal = async (meal: MealEntry) => {
     try {
-      const dateStr = currentDate.toISOString().split("T")[0]; // Format: YYYY-MM-DD
+      // Format timestamp as ISO string with time (YYYY-MM-DDTHH:MM:SS)
+      const timestamp = new Date(currentDate).toISOString();
       const { data: savedMeal } = await api.post("/meals/", {
         user_id: user?.uid, // Dynamic user ID
         description: meal.description,
@@ -232,11 +259,11 @@ export default function App() {
         carbs: meal.carbs,
         fat: meal.fat,
         sugar: meal.sugar,
-        timestamp: dateStr, // Use the selected date, not today's date
+        timestamp: timestamp, // Full ISO datetime format
       });
       setMeals((prev) => [savedMeal, ...prev]);
 
-       // If we have a conversation ID, delete the thread
+      // If we have a conversation ID, delete the thread
       if (conversationId) {
         try {
           await api.delete(`/openai/thread/${conversationId}`);
@@ -249,9 +276,9 @@ export default function App() {
       setPendingMeal(null);
       setConversationId(null);
       setAwaitingConfirmation(false);
-      setUserFeedback('');
+      setUserFeedback("");
       setConversationHistory([]); // Always clear conversation history after saving a meal
-    
+
       return savedMeal;
     } catch (error) {
       throw new Error("Failed to save meal");
@@ -282,7 +309,7 @@ export default function App() {
 
     // Add slight vibration feedback when sending message
     Vibration.vibrate(20);
-    
+
     await handleFoodInput(input);
   };
 
@@ -291,14 +318,14 @@ export default function App() {
     setConversationId(null); // Always clear conversation ID
     setAwaitingConfirmation(false);
     setUserFeedback("");
-    
+
     // Only clear conversation history when:
     // 1. keepHistory is false AND
     // 2. We're not in the middle of adding more information to a pending meal
     if (!keepHistory) {
       setConversationHistory([]);
     }
-    
+
     setInputText("");
   };
 
@@ -329,7 +356,7 @@ export default function App() {
       acc.sugar = (acc.sugar ?? 0) + (meal.sugar ?? 0);
       return acc;
     },
-    { calories: 0, protein: 0, fiber: 0, carbs: 0, fat: 0, sugar: 0 },
+    { calories: 0, protein: 0, fiber: 0, carbs: 0, fat: 0, sugar: 0 }
   );
   // Conditionally render LoginScreen or Main App
   if (!user) {
@@ -347,7 +374,7 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaView style={styles.container}>
-        <HamburgerMenu userProfile={userProfile} onSave={setUserProfile} />
+        <HamburgerMenu userProfile={userProfile} onSave={updateUserProfile} />
         <View style={styles.dateNavigationContainer}>
           <Button title="←" onPress={() => changeDateByOffset(-1)} />
           <Text

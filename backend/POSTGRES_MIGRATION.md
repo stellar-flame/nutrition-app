@@ -1,6 +1,6 @@
-# Health App PostgreSQL Migration Guide
+# Nutrition App PostgreSQL Migration Guide
 
-This document outlines the steps taken to migrate the Health App backend from SQLite to PostgreSQL.
+This document outlines the steps taken to migrate the Nutrition App backend from SQLite to PostgreSQL.
 
 ## Setup Instructions
 
@@ -19,7 +19,7 @@ This document outlines the steps taken to migrate the Health App backend from SQ
 
 2. Create a new database
    ```
-   createdb health_app
+   createdb nutrition_app
    ```
 
 3. Install Python dependencies
@@ -30,7 +30,7 @@ This document outlines the steps taken to migrate the Health App backend from SQ
 4. Configure environment variables
    - Copy `.env.example` to `.env`
    - Set `DATABASE_URL` to your PostgreSQL connection string
-   - Example: `DATABASE_URL=postgresql://username:password@localhost/health_app`
+   - Example: `DATABASE_URL=postgresql://username:password@localhost/nutrition_app`
 
 ### Database Migration
 

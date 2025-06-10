@@ -31,7 +31,7 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL")
 # For local development with PostgreSQL as default
 if not DATABASE_URL:
-    DATABASE_URL = "postgresql://localhost/health_app"
+    DATABASE_URL = "postgresql://localhost/nutrition_app"
 elif DATABASE_URL.startswith("postgres://"):
     # Heroku/Vercel style URLs need to be adapted for SQLAlchemy
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)

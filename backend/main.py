@@ -8,7 +8,11 @@ from api.auth import router as auth_router
 
 init_db()
 
-app = FastAPI()
+app = FastAPI(
+    title="Nutrition App API",
+    description="API for tracking meals, nutrients, and providing personalized nutrition recommendations",
+    version="1.0.0"
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -22,3 +26,12 @@ app.include_router(chat_router)
 app.include_router(meals_router)
 app.include_router(users_router)
 app.include_router(auth_router)
+
+# Root endpoint for health checks
+@app.get("/")
+def read_root():
+    return {"status": "healthy", "message": "Nutrition App API is running"}
+
+# Handler for serverless functions (Vercel)
+from mangum import Mangum
+handler = Mangum(app)

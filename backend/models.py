@@ -67,7 +67,6 @@ class UserProfile(BaseModel):
 
 class UserProfileResponse(UserProfile):
     id: str
-    
     model_config = ConfigDict(from_attributes=True)
 
 class MealCreate(BaseModel):
