@@ -24,14 +24,8 @@ def get_user_profile_endpoint(user_id: str = Path(..., description="User UID to 
     # With SQLAlchemy models, we can directly return the model instance
     print(f"User profile found: {db_user}")
     # Explicitly create UserProfileResponse
-    return UserProfileResponse(
-        id=db_user.id,
-        first_name=db_user.first_name,
-        last_name=db_user.last_name,
-        date_of_birth=str(db_user.date_of_birth),  # Convert date to string
-        weight=db_user.weight,
-        height=db_user.height
-    )
+    return db_user
+    
 
 @router.get("/users/{user_id}/nutrition-needs")
 def get_nutrition_needs(
