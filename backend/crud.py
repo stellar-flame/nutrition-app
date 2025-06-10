@@ -1,69 +1,104 @@
-from db import get_db_connection
-from models import MealCreate, UserProfile
+from sqlalchemy.orm import Session
+from sqlalchemy import func, cast, Date
+from models import MealModel, UserModel, MealCreate, UserProfile
 from datetime import datetime
+import uuid
 from fastapi import HTTPException
+from typing import List, Optional, Tuple
 
 # CRUD for meals
 
-def create_meal(meal: MealCreate):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    timestamp = meal.timestamp or datetime.utcnow().date().isoformat()
+def create_meal(meal: MealCreate, db: Session) -> Tuple[MealModel, datetime]:
+    """Create a new meal entry using SQLAlchemy"""
+    timestamp = meal.timestamp or datetime.utcnow()
+    
     try:
-        cursor.execute("""
-            INSERT INTO meals (user_id, description, calories, protein, fiber, carbs, fat, sugar, timestamp)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            meal.user_id,
-            meal.description,
-            meal.calories,
-            meal.protein,
-            meal.fiber,
-            meal.carbs,
-            meal.fat,
-            meal.sugar,
-            timestamp
-        ))
-        conn.commit()
-        meal_id = cursor.lastrowid
-        return meal_id, timestamp
+        db_meal = MealModel(
+            user_id=meal.user_id,
+            description=meal.description,
+            calories=meal.calories,
+            protein=meal.protein,
+            fiber=meal.fiber,
+            carbs=meal.carbs,
+            fat=meal.fat,
+            sugar=meal.sugar,
+            assumptions=meal.assumptions,
+            timestamp=timestamp
+        )
+        db.add(db_meal)
+        db.commit()
+        db.refresh(db_meal)
+        return db_meal, db_meal.timestamp
     except Exception as e:
-        conn.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        conn.close()
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to create meal: {str(e)}")
 
-def get_meals(user_id: str, search_date: str):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM meals WHERE user_id = ? AND date(timestamp) = ? ORDER BY timestamp DESC", (user_id, search_date))
-    rows = cursor.fetchall()
-    conn.close()
-    return rows
+def get_meals(user_id: str, search_date: str, db: Session) -> List[MealModel]:
+    """Get all meals for a user on a specific date"""
+    # Convert string date to datetime object for comparison
+    date_obj = datetime.strptime(search_date, '%Y-%m-%d').date()
+    
+    # Query all meals for the user on the given date
+    meals = db.query(MealModel).filter(
+        MealModel.user_id == user_id,
+        func.date(MealModel.timestamp) == date_obj
+    ).order_by(MealModel.timestamp.desc()).all()
+    
+    return meals
 
-def clear_meals(user_id: str):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM meals WHERE user_id = ?", (user_id,))
-    conn.commit()
-    conn.close()
+def get_meal(meal_id: int, db: Session) -> Optional[MealModel]:
+    """Get a specific meal by ID"""
+    return db.query(MealModel).filter(MealModel.id == meal_id).first()
 
-def create_user_profile(user: UserProfile):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO users (first_name, last_name, date_of_birth, weight, height)
-        VALUES (?, ?, ?, ?, ?)
-    """, (user.first_name, user.last_name, user.date_of_birth, user.weight, user.height))
-    conn.commit()
-    user_id = cursor.lastrowid
-    conn.close()
-    return user_id
+def delete_meal(meal_id: int, db: Session) -> bool:
+    """Delete a meal by ID"""
+    meal = db.query(MealModel).filter(MealModel.id == meal_id).first()
+    if meal:
+        db.delete(meal)
+        db.commit()
+        return True
+    return False
 
-def get_user_profile(user_id: int):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-    row = cursor.fetchone()
-    conn.close()
-    return row
+def clear_meals(user_id: str, db: Session) -> int:
+    """Delete all meals for a user and return the count of deleted meals"""
+    result = db.query(MealModel).filter(MealModel.user_id == user_id).delete()
+    db.commit()
+    return result
+
+def create_user_profile(user: UserProfile, db: Session) -> str:
+    """Create a new user profile"""
+    # Generate a UUID for the user ID
+    user_id = str(uuid.uuid4())
+    
+    db_user = UserModel(
+        id=user_id,
+        first_name=user.first_name,
+        last_name=user.last_name,
+        date_of_birth=user.date_of_birth,
+        weight=user.weight,
+        height=user.height
+    )
+    
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user.id
+
+def get_user_profile(user_id: str, db: Session) -> Optional[UserModel]:
+    """Get a user profile by ID"""
+    return db.query(UserModel).filter(UserModel.id == user_id).first()
+
+def update_user_profile(user_id: str, user: UserProfile, db: Session) -> Optional[UserModel]:
+    """Update an existing user profile"""
+    db_user = db.query(UserModel).filter(UserModel.id == user_id).first()
+    if db_user:
+        db_user.first_name = user.first_name
+        db_user.last_name = user.last_name
+        db_user.date_of_birth = user.date_of_birth
+        db_user.weight = user.weight
+        db_user.height = user.height
+        
+        db.commit()
+        db.refresh(db_user)
+        return db_user
+    return None

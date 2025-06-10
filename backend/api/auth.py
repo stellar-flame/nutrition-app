@@ -2,7 +2,10 @@ from fastapi import APIRouter, HTTPException, Depends
 from firebase_admin import auth as firebase_auth
 from pydantic import BaseModel
 from utils import verify_firebase_token
-import sqlite3
+from sqlalchemy.orm import Session
+from db import get_db
+from models import UserModel
+from datetime import datetime
 
 router = APIRouter()
 
@@ -23,7 +26,7 @@ class SignupRequest(BaseModel):
     height: float
 
 @router.post("/auth/signup")
-def signup_user(request: SignupRequest):
+def signup_user(request: SignupRequest, db: Session = Depends(get_db)):
     try:
         # Create user in Firebase
         print(f"Creating user with email: {request.email}")
@@ -33,28 +36,31 @@ def signup_user(request: SignupRequest):
             password=request.password
         )
         
-        # Insert user into the database
-        conn = sqlite3.connect("meals.db")
-        cursor = conn.cursor()
-        # Ensure proper type casting before inserting into the database
-        cursor.execute(
-            """
-            INSERT INTO users (id, first_name, last_name, date_of_birth, weight, height)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (
-                user.uid,
-                request.first_name,
-                request.last_name,
-                str(request.date_of_birth),  # Cast date_of_birth to string
-                float(request.weight),       # Cast weight to float
-                float(request.height)        # Cast height to float
-            )
+        # Insert user into the database using SQLAlchemy
+        # Convert string date to Python date object
+        date_of_birth = datetime.strptime(request.date_of_birth, "%Y-%m-%d").date()
+        
+        # Create UserModel instance
+        db_user = UserModel(
+            id=user.uid,
+            first_name=request.first_name,
+            last_name=request.last_name,
+            date_of_birth=date_of_birth,
+            weight=float(request.weight),
+            height=float(request.height)
         )
-        conn.commit()
-        conn.close()
-
-        return {"message": "User created successfully", "uid": user.uid}
+        
+        try:
+            # Add to session and commit
+            db.add(db_user)
+            db.commit()
+            db.refresh(db_user)
+            return {"message": "User created successfully", "uid": user.uid}
+        except Exception as db_error:
+            db.rollback()
+            # Delete the user from Firebase if database insertion fails
+            firebase_auth.delete_user(user.uid)
+            raise HTTPException(status_code=500, detail=f"Database error: {str(db_error)}")
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 

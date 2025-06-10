@@ -1,39 +1,48 @@
-import sqlite3
-from sqlite3 import Connection
+import os
+from sqlalchemy import create_engine
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+from dotenv import load_dotenv
 
-DATABASE = "meals.db"
+# Load environment variables
+load_dotenv()
 
-def get_db_connection() -> Connection:
-    conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row
-    return conn
+# Get database URL from environment variable
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+# For local development with PostgreSQL as default
+if not DATABASE_URL:
+    print("Warning: DATABASE_URL not set, using local PostgreSQL database")
+    DATABASE_URL = "postgresql://localhost/health_app"
+elif DATABASE_URL.startswith("postgres://"):
+    # Heroku/Vercel style URLs need to be adapted for SQLAlchemy
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+# Create SQLAlchemy engine with connection pooling for production use
+engine = create_engine(
+    DATABASE_URL, 
+    echo=os.getenv("SQL_ECHO", "false").lower() == "true",
+    # Connection pooling settings
+    pool_pre_ping=True,  # Check if connection is alive before using
+    pool_recycle=300,    # Recycle connections after 5 minutes
+    pool_size=10,        # Maximum number of connections to keep in the pool
+    max_overflow=20      # Maximum number of connections that can be created beyond pool_size
+)
+
+# Create SessionLocal class
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# Create Base class for models
+Base = declarative_base()
+
+def get_db():
+    """Dependency for getting DB session"""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 def init_db():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS meals (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT NOT NULL,
-            description TEXT NOT NULL,
-            calories REAL NOT NULL,
-            protein REAL,
-            fiber REAL,
-            carbs REAL,
-            fat REAL,
-            sugar REAL,
-            timestamp TEXT NOT NULL
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id TEXT PRIMARY KEY,
-            first_name TEXT NOT NULL,
-            last_name TEXT NOT NULL,
-            date_of_birth TEXT NOT NULL,
-            weight REAL NOT NULL,
-            height REAL NOT NULL
-        )
-    """)
-    conn.commit()
-    conn.close()
+    """Initialize the database (create tables)"""
+    Base.metadata.create_all(bind=engine)

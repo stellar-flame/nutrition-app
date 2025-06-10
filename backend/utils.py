@@ -67,8 +67,7 @@ def calculate_bmr(weight_kg: float, height_cm: float, age: int, sex: str = "male
         bmr = 10 * weight_kg + 6.25 * height_cm - 5 * age - 161
     return floor(bmr)
 
-def calculate_age(dob_str: str) -> int:
-    dob = dt.datetime.strptime(dob_str, "%Y-%m-%d").date()
+def calculate_age(dob) -> int:
     today = dt.date.today()
     age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
     return age
