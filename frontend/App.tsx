@@ -388,7 +388,7 @@ export default function App() {
           </Text>
           <Button title="→" onPress={() => changeDateByOffset(1)} />
         </View>
-        <Text style={styles.title}>Health App - Calorie Tracker</Text>
+        <Text style={styles.title}>Nutrition App - Calorie Tracker</Text>
 
         <NutritionSummary totals={totals} nutritionNeeds={nutritionNeeds} />
 

@@ -6,7 +6,7 @@
    - Log in to the Firebase console (https://console.firebase.google.com/)
    - Navigate to Project settings > Service accounts
    - Click "Manage service account permissions"
-   - Find the exposed service account (firebase-adminsdk-fbsvc@health-app-ed269.iam.gserviceaccount.com)
+   - Find the exposed service account (firebase-adminsdk-fbsvc@nutri-app-ed269.iam.gserviceaccount.com)
    - Click the three dots menu and select "Delete service account" or "Disable"
    - Generate a new service account key if needed
 
