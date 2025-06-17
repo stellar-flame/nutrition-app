@@ -263,16 +263,7 @@ export default function App() {
       });
       setMeals((prev) => [savedMeal, ...prev]);
 
-      // If we have a conversation ID, delete the thread
-      if (conversationId) {
-        try {
-          await api.delete(`/openai/thread/${conversationId}`);
-          console.log("Thread deleted successfully");
-        } catch (threadError) {
-          console.error("Failed to delete thread:", threadError);
-          // Non-blocking error - we still want to continue even if thread deletion fails
-        }
-      }
+      // Clear conversation state (no thread deletion needed with Responses API)
       setPendingMeal(null);
       setConversationId(null);
       setAwaitingConfirmation(false);
