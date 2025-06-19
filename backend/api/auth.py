@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from firebase_admin import auth as firebase_auth
 from pydantic import BaseModel
-from utils import verify_firebase_token
+from utils import verify_firebase_token, get_firebase_app
 from sqlalchemy.orm import Session
 from db import get_db
 from models import UserModel
@@ -28,6 +28,9 @@ class SignupRequest(BaseModel):
 @router.post("/auth/signup")
 def signup_user(request: SignupRequest, db: Session = Depends(get_db)):
     try:
+        # Ensure Firebase is initialized
+        get_firebase_app()
+        
         # Create user in Firebase
         print(f"Creating user with email: {request.email}")
 

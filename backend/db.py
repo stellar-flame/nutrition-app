@@ -7,16 +7,19 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Get database URL from environment variable
-DATABASE_URL = os.getenv("DATABASE_URL")
+# Get individual database parameters from environment variables
+DB_HOST = os.getenv("DB_HOST")
+DB_PORT = os.getenv("DB_PORT")
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_NAME = os.getenv("DB_NAME")
 
-# For local development with PostgreSQL as default
-if not DATABASE_URL:
-    print("Warning: DATABASE_URL not set, using local PostgreSQL database")
-    DATABASE_URL = "postgresql://localhost/nutrition_app"
-elif DATABASE_URL.startswith("postgres://"):
-    # Heroku/Vercel style URLs need to be adapted for SQLAlchemy
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+# Construct the DATABASE_URL from individual parameters
+DATABASE_URL = f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+
+# Handle empty password case for URL construction
+if not DB_PASSWORD:
+    DATABASE_URL = f"postgresql://{DB_USER}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 # Create SQLAlchemy engine with connection pooling for production use
 engine = create_engine(
