@@ -11,8 +11,7 @@ import {
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import api from "./api/axios";
-import { auth } from "./firebase/firebaseConfig";
-import { onAuthStateChanged, signOut, User } from "firebase/auth";
+import { useAuth } from "./hooks/useAuth"; // Import our new custom hook
 
 import HamburgerMenu from "./components/HamburgerMenu";
 import MealList from "./components/MealList";
@@ -22,6 +21,9 @@ import ChatOverlay from "./components/ChatOverlay";
 import { MealEntry, UserProfile, NutritionNeeds } from "./types";
 
 export default function App() {
+  // ✨ NEW: Use our custom hook instead of individual useState calls
+  const { user, isLoading: isAuthLoading, login, logout, error: authError } = useAuth();
+
   useEffect(() => {
     fetch("https://identitytoolkit.googleapis.com")
       .then((res) => console.log("✅ Firebase reachable:", res.status))
@@ -40,9 +42,6 @@ export default function App() {
   const [userFeedback, setUserFeedback] = useState("");
   const [conversationHistory, setConversationHistory] = useState<string[]>([]);
 
-  // Add state for user authentication
-  const [user, setUser] = useState<User | null>(null);
-  const [isAppInitializing, setIsAppInitializing] = useState(true);
 
   const isToday = (date: Date): boolean => {
     const today = new Date();
@@ -84,38 +83,31 @@ export default function App() {
     setIsChatVisible(!isChatVisible);
   };
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setIsAppInitializing(false);
-    });
-    return () => unsubscribe();
-  }, []);
+
   useEffect(() => {
     fetchMealsFromBackend();
     fetchUserProfile();
     fetchNutritionNeeds();
   }, [currentDate, user]);
 
+  // ✨ NEW: Use the login function from our custom hook
   const handleLogin = async (idToken: string) => {
     try {
-      // Send the ID token to the backend for verification
-      const { data } = await api.get("/auth/verify", {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-      console.log("User verified:", data);
-      setUser({ uid: data.uid } as User);
+      await login(idToken); // Much cleaner!
     } catch (error) {
-      console.error("Token verification failed:", error);
+      console.error("Login failed:", error);
+      // The error is already handled in the useAuth hook
     }
   };
 
+  // ✨ NEW: Use the logout function from our custom hook  
   const handleLogout = async () => {
     try {
-      await signOut(auth);
+      await logout(); // Much cleaner!
       console.log("User logged out");
     } catch (error) {
       console.error("Logout error:", error);
+      // The error is already handled in the useAuth hook
     }
   };
 
@@ -349,17 +341,24 @@ export default function App() {
     },
     { calories: 0, protein: 0, fiber: 0, carbs: 0, fat: 0, sugar: 0 }
   );
-  // Conditionally render LoginScreen or Main App
-  if (!user) {
-    return <LoginScreen onLogin={handleLogin} />;
-  }
-
-  if (isAppInitializing) {
+  // ✨ NEW: Show loading screen while determining auth state
+  if (isAuthLoading) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
         <ActivityIndicator size="large" />
+        <Text style={{ marginTop: 10 }}>Loading...</Text>
+        {authError && (
+          <Text style={{ color: 'red', marginTop: 10 }}>
+            Auth Error: {authError}
+          </Text>
+        )}
       </View>
     );
+  }
+
+  // ✨ NEW: Show login screen if no user (much cleaner logic)
+  if (!user) {
+    return <LoginScreen onLogin={handleLogin} />;
   }
 
   return (
