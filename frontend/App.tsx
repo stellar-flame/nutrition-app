@@ -12,13 +12,15 @@ import {
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import api from "./api/axios";
 import { useAuth } from "./hooks/useAuth"; // Import our new custom hook
+import { useMeals } from './hooks/useMeals';
 
 import HamburgerMenu from "./components/HamburgerMenu";
 import MealList from "./components/MealList";
 import NutritionSummary from "./components/NutritionSummary";
 import LoginScreen from "./components/LoginScreen";
 import ChatOverlay from "./components/ChatOverlay";
-import { MealEntry, UserProfile, NutritionNeeds } from "./types";
+import { UserProfile, NutritionNeeds } from "./types";
+import { User } from 'firebase/auth';
 
 export default function App() {
   // ✨ NEW: Use our custom hook instead of individual useState calls
@@ -31,12 +33,11 @@ export default function App() {
   }, []);
 
   const [currentDate, setCurrentDate] = useState(new Date());
+ 
   const [inputText, setInputText] = useState("");
-  const [meals, setMeals] = useState<MealEntry[]>([]);
   const [loading, setLoading] = useState(false);
 
   // State for conversational logging
-  const [pendingMeal, setPendingMeal] = useState<MealEntry | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
   const [userFeedback, setUserFeedback] = useState("");
@@ -69,6 +70,30 @@ export default function App() {
     sugar: 0,
   });
 
+  const {
+    meals,
+    pendingMeal,
+    createPendingMeal,
+    saveMeal,
+    cancelMeal,
+    handleDeleteMeal
+  } = useMeals(user as User, currentDate, {
+    // Pass callbacks to handle meal saving and cancellation
+      onMealSaved: () => {
+      setConversationId(null);
+      setAwaitingConfirmation(false);
+      setUserFeedback("");
+      setConversationHistory([]);
+    },
+    onMealCancelled: () => {
+      setConversationId(null);
+      setAwaitingConfirmation(false);
+      setUserFeedback("");
+      setConversationHistory([]);
+      setInputText("");
+    }
+  });
+
   // Add state for chat overlay visibility
   const [isChatVisible, setIsChatVisible] = useState(false);
 
@@ -85,7 +110,6 @@ export default function App() {
 
 
   useEffect(() => {
-    fetchMealsFromBackend();
     fetchUserProfile();
     fetchNutritionNeeds();
   }, [currentDate, user]);
@@ -169,31 +193,7 @@ export default function App() {
     }
   };
 
-  const fetchMealsFromBackend = async () => {
-    if (!user?.uid) return;
-    try {
-      // Keep using just the date part for searching meals by day
-      const dateStr = currentDate.toISOString().split("T")[0];
-      const { data } = await api.get(`/meals/${user.uid}`, {
-        params: { search_date: dateStr },
-      });
-      if (data.meals) {
-        const cleanedMeals = data.meals.map((meal: any) => ({
-          ...meal,
-          calories: Number(meal.calories),
-          protein: Number(meal.protein),
-          fiber: Number(meal.fiber),
-          carbs: Number(meal.carbs),
-          fat: Number(meal.fat),
-          sugar: Number(meal.sugar),
-        }));
-        setMeals(cleanedMeals);
-      }
-    } catch (error) {
-      console.error("Error fetching meals from backend:", error);
-      setMeals([]);
-    }
-  };
+  
 
   // For handling food input and conversation
   const handleFoodInput = async (input: string) => {
@@ -221,7 +221,7 @@ export default function App() {
         Vibration.vibrate(30);
       } else if (result.meal) {
         console.log("Meal: " + result.message);
-        setPendingMeal(result.meal);
+        createPendingMeal(result.meal);
         setAwaitingConfirmation(true);
 
         const mealInfo = `App: Found "${result.meal.description}" (${result.meal.calories} cal)`;
@@ -237,36 +237,6 @@ export default function App() {
     }
   };
 
-  // For saving confirmed meals
-  const saveMeal = async (meal: MealEntry) => {
-    try {
-      // Format timestamp as ISO string with time (YYYY-MM-DDTHH:MM:SS)
-      const timestamp = new Date(currentDate).toISOString();
-      const { data: savedMeal } = await api.post("/meals/", {
-        user_id: user?.uid, // Dynamic user ID
-        description: meal.description,
-        calories: meal.calories,
-        protein: meal.protein,
-        fiber: meal.fiber,
-        carbs: meal.carbs,
-        fat: meal.fat,
-        sugar: meal.sugar,
-        timestamp: timestamp, // Full ISO datetime format
-      });
-      setMeals((prev) => [savedMeal, ...prev]);
-
-      // Clear conversation state (no thread deletion needed with Responses API)
-      setPendingMeal(null);
-      setConversationId(null);
-      setAwaitingConfirmation(false);
-      setUserFeedback("");
-      setConversationHistory([]); // Always clear conversation history after saving a meal
-
-      return savedMeal;
-    } catch (error) {
-      throw new Error("Failed to save meal");
-    }
-  };
 
   // Handle user input
   const addMeal = async () => {
@@ -296,30 +266,7 @@ export default function App() {
     await handleFoodInput(input);
   };
 
-  const cancelMeal = (keepHistory: boolean = false) => {
-    setPendingMeal(null);
-    setConversationId(null); // Always clear conversation ID
-    setAwaitingConfirmation(false);
-    setUserFeedback("");
 
-    // Only clear conversation history when:
-    // 1. keepHistory is false AND
-    // 2. We're not in the middle of adding more information to a pending meal
-    if (!keepHistory) {
-      setConversationHistory([]);
-    }
-
-    setInputText("");
-  };
-
-  const handleDeleteMeal = async (id: string) => {
-    try {
-      await api.delete(`/meals/${id}`);
-      setMeals((prev) => prev.filter((meal) => meal.id !== id));
-    } catch (error) {
-      console.error("Failed to delete meal");
-    }
-  };
 
   // Define direct functions for changing dates
   function changeDateByOffset(offset: number) {
