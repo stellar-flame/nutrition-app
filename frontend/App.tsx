@@ -7,7 +7,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   TouchableOpacity,
-  Vibration,
 } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import api from "./api/axios";
@@ -33,17 +32,7 @@ export default function App() {
   }, []);
 
   const [currentDate, setCurrentDate] = useState(new Date());
- 
-  const [inputText, setInputText] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  // State for conversational logging
-  const [conversationId, setConversationId] = useState<string | null>(null);
-  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
-  const [userFeedback, setUserFeedback] = useState("");
-  const [conversationHistory, setConversationHistory] = useState<string[]>([]);
-
-
+  
   const isToday = (date: Date): boolean => {
     const today = new Date();
     return (
@@ -77,32 +66,11 @@ export default function App() {
     saveMeal,
     cancelMeal,
     handleDeleteMeal
-  } = useMeals(user as User, currentDate, {
-    // Pass callbacks to handle meal saving and cancellation
-      onMealSaved: () => {
-      setConversationId(null);
-      setAwaitingConfirmation(false);
-      setUserFeedback("");
-      setConversationHistory([]);
-    },
-    onMealCancelled: () => {
-      setConversationId(null);
-      setAwaitingConfirmation(false);
-      setUserFeedback("");
-      setConversationHistory([]);
-      setInputText("");
-    }
-  });
+  } = useMeals(user as User, currentDate);
 
   // Add state for chat overlay visibility
   const [isChatVisible, setIsChatVisible] = useState(false);
 
-  // Show chat overlay when meal confirmation is needed
-  useEffect(() => {
-    if (awaitingConfirmation && pendingMeal) {
-      setIsChatVisible(true);
-    }
-  }, [awaitingConfirmation, pendingMeal]);
 
   const toggleChat = () => {
     setIsChatVisible(!isChatVisible);
@@ -195,76 +163,7 @@ export default function App() {
 
   
 
-  // For handling food input and conversation
-  const handleFoodInput = async (input: string) => {
-    setLoading(true);
-
-    try {
-      const { data: result } = await api.post("/openai/chat", {
-        user_id: user?.uid, // Dynamic user ID
-        description: input,
-        conversation_id: conversationId,
-        user_feedback: userFeedback || undefined,
-        model: "gpt-4",
-        temperature: 0,
-        max_tokens: 150,
-      });
-
-      // Always use the conversation ID from the response
-      setConversationId(result.conversation_id);
-
-      if (result.message) {
-        // Add AI's message to conversation history
-        console.log("Message: " + result.message);
-        setConversationHistory((prev) => [...prev, `App: ${result.message}`]);
-        // Add slight vibration feedback when receiving message
-        Vibration.vibrate(30);
-      } else if (result.meal) {
-        console.log("Meal: " + result.message);
-        createPendingMeal(result.meal);
-        setAwaitingConfirmation(true);
-
-        const mealInfo = `App: Found "${result.meal.description}" (${result.meal.calories} cal)`;
-
-        setConversationHistory((prev) => [...prev, mealInfo]);
-        // Add slightly stronger vibration for meal confirmation
-        Vibration.vibrate(50);
-      }
-    } catch (error) {
-      console.error("Error:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-
-  // Handle user input
-  const addMeal = async () => {
-    if (!inputText.trim()) return;
-
-    const input = inputText.trim();
-    setInputText(""); // Clear input immediately
-
-    // Add to conversation history
-    if (awaitingConfirmation) {
-      // If we're awaiting confirmation, append to history
-      setConversationHistory((prev) => [...prev, `You: ${input}`]);
-      setUserFeedback(input);
-    } else if (conversationId && conversationHistory.length > 0) {
-      // If we have an existing conversation, append to history
-      setConversationHistory((prev) => [...prev, `You: ${input}`]);
-      setUserFeedback("");
-    } else {
-      // Start a new conversation
-      setConversationHistory([`You: ${input}`]);
-      setUserFeedback("");
-    }
-
-    // Add slight vibration feedback when sending message
-    Vibration.vibrate(20);
-
-    await handleFoodInput(input);
-  };
+ 
 
 
 
@@ -340,18 +239,13 @@ export default function App() {
 
         {/* Chat overlay */}
         <ChatOverlay
+          user={user as User}
           isVisible={isChatVisible}
           onClose={() => setIsChatVisible(false)}
-          conversationHistory={conversationHistory}
-          inputText={inputText}
-          setInputText={setInputText}
-          addMeal={addMeal}
-          loading={loading}
           pendingMeal={pendingMeal}
+          createPendingMeal={createPendingMeal}
           saveMeal={saveMeal}
-          setConversationHistory={setConversationHistory}
           cancelMeal={cancelMeal}
-          awaitingConfirmation={awaitingConfirmation}
         />
       </SafeAreaView>
     </GestureHandlerRootView>

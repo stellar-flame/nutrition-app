@@ -11,8 +11,6 @@ interface UseMealReturn {
     saveMeal: (meal: MealEntry) => Promise<MealEntry>;
     handleDeleteMeal: (id: string) => Promise<void>;
     cancelMeal: () => void; 
-    onMealSaved?: () => void;
-    onMealCancelled?: () => void;
 }
 
 export const useMeals = (user: User, currentDate: Date, callbacks?: {onMealSaved?: () => void;
@@ -94,7 +92,6 @@ export const useMeals = (user: User, currentDate: Date, callbacks?: {onMealSaved
     
     const cancelMeal = () => {
         setPendingMeal(null);
-        callbacks?.onMealCancelled?.();
     };
 
     // Return object with all auth state and functions
@@ -105,7 +102,5 @@ export const useMeals = (user: User, currentDate: Date, callbacks?: {onMealSaved
         saveMeal,
         handleDeleteMeal,
         cancelMeal,
-        onMealSaved: undefined as (() => void) | undefined,
-        onMealCancelled: undefined as (() => void) | undefined,
     };
 };
