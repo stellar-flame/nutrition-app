@@ -5,7 +5,6 @@ import { User } from 'firebase/auth';
 
 // Define the return type for our custom hook
 interface UseMealReturn {
-    meals: MealEntry[];
     pendingMeal: MealEntry | null;
     createPendingMeal: (mealData: MealEntry) => void;
     saveMeal: (meal: MealEntry) => Promise<MealEntry>;
@@ -13,41 +12,9 @@ interface UseMealReturn {
     cancelMeal: () => void; 
 }
 
-export const useMeals = (user: User, currentDate: Date, callbacks?: {onMealSaved?: () => void;
-    onMealCancelled?: () => void; }): UseMealReturn => {
+export const useMeals = (user: User, currentDate: Date, callbacks?: {onMealSaved?: () => void;}): UseMealReturn => {
     
-    const [meals, setMeals] = useState<MealEntry[]>([]);
     const [pendingMeal, setPendingMeal] = useState<MealEntry | null>(null);
-
-    useEffect(() => {
-        fetchMealsFromBackend();
-    }, [currentDate, user]);
-      
-    const fetchMealsFromBackend = async () => {
-        if (!user?.uid) return;
-        try {
-        // Keep using just the date part for searching meals by day
-        const dateStr = currentDate.toISOString().split("T")[0];
-        const { data } = await api.get(`/meals/${user.uid}`, {
-            params: { search_date: dateStr },
-        });
-        if (data.meals) {
-            const cleanedMeals = data.meals.map((meal: any) => ({
-            ...meal,
-            calories: Number(meal.calories),
-            protein: Number(meal.protein),
-            fiber: Number(meal.fiber),
-            carbs: Number(meal.carbs),
-            fat: Number(meal.fat),
-            sugar: Number(meal.sugar),
-            }));
-            setMeals(cleanedMeals);
-        }
-        } catch (error) {
-        console.error("Error fetching meals from backend:", error);
-        setMeals([]);
-        }
-    };
 
     const createPendingMeal = (mealData: MealEntry) => {
        setPendingMeal(mealData);
@@ -68,7 +35,6 @@ export const useMeals = (user: User, currentDate: Date, callbacks?: {onMealSaved
                 sugar: meal.sugar,
                 timestamp: timestamp, // Full ISO datetime format
             });
-            setMeals((prev) => [savedMeal, ...prev]);
 
             // Clear conversation state (no thread deletion needed with Responses API)
             setPendingMeal(null);
@@ -80,11 +46,10 @@ export const useMeals = (user: User, currentDate: Date, callbacks?: {onMealSaved
         }
     };
 
-    
     const handleDeleteMeal = async (id: string) => {
         try {
             await api.delete(`/meals/${id}`);
-            setMeals((prev) => prev.filter((meal) => meal.id !== id));
+            callbacks?.onMealSaved?.();
         } catch (error) {
             console.error("Failed to delete meal");
         }
@@ -96,7 +61,6 @@ export const useMeals = (user: User, currentDate: Date, callbacks?: {onMealSaved
 
     // Return object with all auth state and functions
     return {
-        meals,
         pendingMeal,        
         createPendingMeal,
         saveMeal,

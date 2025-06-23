@@ -20,6 +20,7 @@ import LoginScreen from "./components/LoginScreen";
 import ChatOverlay from "./components/ChatOverlay";
 import { UserProfile, NutritionNeeds } from "./types";
 import { User } from 'firebase/auth';
+import { MealEntry } from "./types";
 
 export default function App() {
   // ✨ NEW: Use our custom hook instead of individual useState calls
@@ -59,14 +60,7 @@ export default function App() {
     sugar: 0,
   });
 
-  const {
-    meals,
-    pendingMeal,
-    createPendingMeal,
-    saveMeal,
-    cancelMeal,
-    handleDeleteMeal
-  } = useMeals(user as User, currentDate);
+
 
   // Add state for chat overlay visibility
   const [isChatVisible, setIsChatVisible] = useState(false);
@@ -161,11 +155,48 @@ export default function App() {
     }
   };
 
+  const [meals, setMeals] = useState<MealEntry[]>([]);
+
+  // Define onMealSaved callback to fetch meals after a meal is saved
+  const onMealSaved = () => fetchMealsFromBackend();
+
+  const {
+    pendingMeal,
+    createPendingMeal,
+    saveMeal,
+    cancelMeal,
+    handleDeleteMeal
+  } = useMeals(user as User, currentDate, { onMealSaved });
   
-
- 
-
-
+  useEffect(() => {
+      fetchMealsFromBackend();
+  }, [currentDate, user]);
+    
+  const fetchMealsFromBackend = async () => {
+      if (!user?.uid) return;
+      try {
+      // Keep using just the date part for searching meals by day
+      const dateStr = currentDate.toISOString().split("T")[0];
+      const { data } = await api.get(`/meals/${user.uid}`, {
+          params: { search_date: dateStr },
+      });
+      if (data.meals) {
+          const cleanedMeals = data.meals.map((meal: any) => ({
+          ...meal,
+          calories: Number(meal.calories),
+          protein: Number(meal.protein),
+          fiber: Number(meal.fiber),
+          carbs: Number(meal.carbs),
+          fat: Number(meal.fat),
+          sugar: Number(meal.sugar),
+          }));
+          setMeals(cleanedMeals);
+      }
+      } catch (error) {
+      console.error("Error fetching meals from backend:", error);
+      setMeals([]);
+      }
+  };
 
   // Define direct functions for changing dates
   function changeDateByOffset(offset: number) {
