@@ -19,11 +19,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { MealEntry } from '../types';
 import { User } from 'firebase/auth';
 import api from "../api/axios";
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../hooks/useAuth'; // Custom hook for authentication
 
 
 interface ChatOverlayProps {
-  user: User | null; // Dynamic user ID,
   isVisible: boolean;
   onClose: () => void;
   pendingMeal: MealEntry | null;

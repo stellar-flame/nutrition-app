@@ -85,7 +85,6 @@ async def openai_chat(request: ChatRequest):
         response_params["previous_response_id"] = request.conversation_id
     
     response = client.responses.create(**response_params)
-    print(f"OpenAI response: {response}")
     
     # Process the structured response
     if response.output and len(response.output) > 0:

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, Modal, StyleSheet, TextInput, Button, Alert, KeyboardAvoidingView, ScrollView, Keyboard, TouchableWithoutFeedback, Platform } from 'react-native';
-import { signOut } from 'firebase/auth'; // Import signOut from Firebase
-import { auth } from '../firebase/firebaseConfig'; // Import Firebase auth instance
+import { useAuth } from '../hooks/useAuth'; // Custom hook for authentication
 
 interface UserProfile {
   firstName: string;
@@ -25,6 +24,8 @@ const HamburgerMenu: React.FC<HamburgerMenuProps> = ({ userProfile, onSave }) =>
     setProfile(userProfile);
   }, [userProfile]);
 
+  const { user, isLoading: isAuthLoading, login, logout, error: authError } = useAuth();
+  
   const handleChange = (field: keyof UserProfile, value: string) => {
     setProfile({ ...profile, [field]: value });
   };
@@ -36,12 +37,11 @@ const HamburgerMenu: React.FC<HamburgerMenuProps> = ({ userProfile, onSave }) =>
 
   const handleLogout = async () => {
     try {
-      await signOut(auth); // Log out the user
-      console.log('User logged out successfully');
-      Alert.alert('Success', 'You have been logged out.');
+      await logout(); // Much cleaner!
+      console.log("User logged out");
     } catch (error) {
-      console.error('Logout error:', error);
-      Alert.alert('Error', 'Failed to log out. Please try again.');
+      console.error("Logout error:", error);
+      // The error is already handled in the useAuth hook
     }
   };
 

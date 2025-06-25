@@ -13,8 +13,6 @@ def get_meals_endpoint(
     search_date: str = None,
     db: Session = Depends(get_db)
 ):
-    if search_date is None:
-        search_date = date.today().isoformat()
     
     meals = get_meals(user_id, search_date, db)
     # SQLAlchemy objects are returned with all their attributes
@@ -27,9 +25,7 @@ def clear_meals_endpoint(user_id: str, db: Session = Depends(get_db)):
 
 @router.post("/meals/", response_model=MealResponse)
 def create_meal_endpoint(meal: MealCreate, db: Session = Depends(get_db)):
-    print(meal)
-    db_meal, timestamp = create_meal(meal, db)
-    
+    db_meal, timestamp = create_meal(meal, db)  # Unpack the tuple
     return db_meal
 
 

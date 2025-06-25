@@ -10,8 +10,6 @@ from typing import List, Optional, Tuple
 
 def create_meal(meal: MealCreate, db: Session) -> Tuple[MealModel, datetime]:
     """Create a new meal entry using SQLAlchemy"""
-    timestamp = meal.timestamp or datetime.utcnow()
-    
     try:
         db_meal = MealModel(
             user_id=meal.user_id,
@@ -23,7 +21,7 @@ def create_meal(meal: MealCreate, db: Session) -> Tuple[MealModel, datetime]:
             fat=meal.fat,
             sugar=meal.sugar,
             assumptions=meal.assumptions,
-            timestamp=timestamp
+            meal_date=meal.meal_date
         )
         db.add(db_meal)
         db.commit()
@@ -41,7 +39,7 @@ def get_meals(user_id: str, search_date: str, db: Session) -> List[MealModel]:
     # Query all meals for the user on the given date
     meals = db.query(MealModel).filter(
         MealModel.user_id == user_id,
-        func.date(MealModel.timestamp) == date_obj
+        func.date(MealModel.meal_date) == date_obj
     ).order_by(MealModel.timestamp.desc()).all()
     
     return meals

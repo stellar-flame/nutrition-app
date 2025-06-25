@@ -9,7 +9,7 @@ export interface MealEntry {
   carbs?: number;
   fat?: number;
   sugar?: number;
-  timestamp?: string;
+  date?: string;
 }
 
 export interface UserProfile {

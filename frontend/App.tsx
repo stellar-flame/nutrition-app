@@ -12,7 +12,6 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import api from "./api/axios";
 import { useAuth } from "./hooks/useAuth"; // Import our new custom hook
 import { useMeals } from './hooks/useMeals';
-
 import HamburgerMenu from "./components/HamburgerMenu";
 import MealList from "./components/MealList";
 import NutritionSummary from "./components/NutritionSummary";
@@ -20,7 +19,6 @@ import LoginScreen from "./components/LoginScreen";
 import ChatOverlay from "./components/ChatOverlay";
 import { UserProfile, NutritionNeeds } from "./types";
 import { User } from 'firebase/auth';
-import { MealEntry } from "./types";
 
 export default function App() {
   // ✨ NEW: Use our custom hook instead of individual useState calls
@@ -71,28 +69,13 @@ export default function App() {
   };
 
 
-  useEffect(() => {
-    fetchUserProfile();
-    fetchNutritionNeeds();
-  }, [currentDate, user]);
-
+ 
   // ✨ NEW: Use the login function from our custom hook
   const handleLogin = async (idToken: string) => {
     try {
       await login(idToken); // Much cleaner!
     } catch (error) {
       console.error("Login failed:", error);
-      // The error is already handled in the useAuth hook
-    }
-  };
-
-  // ✨ NEW: Use the logout function from our custom hook  
-  const handleLogout = async () => {
-    try {
-      await logout(); // Much cleaner!
-      console.log("User logged out");
-    } catch (error) {
-      console.error("Logout error:", error);
       // The error is already handled in the useAuth hook
     }
   };
@@ -155,49 +138,23 @@ export default function App() {
     }
   };
 
-  const [meals, setMeals] = useState<MealEntry[]>([]);
-
-  // Define onMealSaved callback to fetch meals after a meal is saved
-  const onMealSaved = () => fetchMealsFromBackend();
-
   const {
+    meals,
     pendingMeal,
+    fetchMealsFromBackend,
     createPendingMeal,
     saveMeal,
     cancelMeal,
     handleDeleteMeal
-  } = useMeals(user as User, currentDate, { onMealSaved });
+  } = useMeals();
   
-  useEffect(() => {
-      fetchMealsFromBackend();
+   useEffect(() => {
+    fetchUserProfile();
+    fetchNutritionNeeds();
+    fetchMealsFromBackend(user as User, currentDate);
   }, [currentDate, user]);
-    
-  const fetchMealsFromBackend = async () => {
-      if (!user?.uid) return;
-      try {
-      // Keep using just the date part for searching meals by day
-      const dateStr = currentDate.toISOString().split("T")[0];
-      const { data } = await api.get(`/meals/${user.uid}`, {
-          params: { search_date: dateStr },
-      });
-      if (data.meals) {
-          const cleanedMeals = data.meals.map((meal: any) => ({
-          ...meal,
-          calories: Number(meal.calories),
-          protein: Number(meal.protein),
-          fiber: Number(meal.fiber),
-          carbs: Number(meal.carbs),
-          fat: Number(meal.fat),
-          sugar: Number(meal.sugar),
-          }));
-          setMeals(cleanedMeals);
-      }
-      } catch (error) {
-      console.error("Error fetching meals from backend:", error);
-      setMeals([]);
-      }
-  };
 
+  
   // Define direct functions for changing dates
   function changeDateByOffset(offset: number) {
     const newDate = new Date(currentDate);
@@ -270,12 +227,11 @@ export default function App() {
 
         {/* Chat overlay */}
         <ChatOverlay
-          user={user as User}
           isVisible={isChatVisible}
           onClose={() => setIsChatVisible(false)}
           pendingMeal={pendingMeal}
           createPendingMeal={createPendingMeal}
-          saveMeal={saveMeal}
+          saveMeal={(meal) => saveMeal(user as User, meal, currentDate)}
           cancelMeal={cancelMeal}
         />
       </SafeAreaView>

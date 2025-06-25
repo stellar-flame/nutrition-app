@@ -33,6 +33,7 @@ class MealModel(Base):
     fat = Column(Float, nullable=False)
     sugar = Column(Float, nullable=False)
     assumptions = Column(Text, nullable=True)
+    meal_date = Column(Date, nullable=False)
     timestamp = Column(DateTime, server_default=func.now())
     
     # Relationships
@@ -78,6 +79,7 @@ class MealCreate(BaseModel):
     carbs: float
     fat: float
     sugar: float
+    meal_date: date
     timestamp: Optional[datetime] = None
     assumptions: Optional[str] = None
     
@@ -95,6 +97,7 @@ class MealResponse(BaseModel):
     carbs: float
     fat: float
     sugar: float
+    meal_date: date
     timestamp: datetime
     
     model_config = ConfigDict(from_attributes=True)
