@@ -99,6 +99,7 @@ export default function App() {
   const updateUserProfile = async (updatedProfile: UserProfile) => {
     if (!user?.uid) return;
     try {
+      console.log("Updating user profile:", updatedProfile);
       // Convert front-end model to back-end model
       const backendProfile = {
         first_name: updatedProfile.firstName,

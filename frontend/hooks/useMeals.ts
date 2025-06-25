@@ -31,7 +31,6 @@ export const useMeals = (): UseMealReturn => {
         const { data } = await api.get(`/meals/${user.uid}`, {
             params: { search_date: dateStr },
         });
-        console.log("Fetched meals from backend:", data);
         if (data.meals) {
             const cleanedMeals = data.meals.map((meal: any) => ({
             ...meal,
