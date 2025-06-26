@@ -6,12 +6,17 @@
 
 ## 📱 Features
 
-- 🧠 AI-powered meal parsing using OpenAI (GPT)
-- 🧾 Real-time tracking of calories, protein, carbs, fat, and sugar
-- 📊 Daily summaries and running totals
-- 🔄 AWS-hosted backend with PostgreSQL storage
-- 🔒 (Planned) Secure login with Firebase/Cognito
-- 🧭 (Planned) Apple Health / Google Fit sync
+- 🧠 AI-powered meal parsing using OpenAI GPT-4
+- 🍽️ Natural language meal logging via chat interface  
+- 📊 Real-time tracking of calories, protein, carbs, fat, fiber, and sugar
+- � Daily meal summaries with date navigation
+- 🔥 Automatic nutrition totals calculation
+- �️ Meal deletion and management
+- 🔒 Firebase Authentication integration
+- 💾 PostgreSQL database with structured meal storage
+- � Cross-platform mobile app (iOS/Android via Expo)
+- 🔄 RESTful API with FastAPI backend
+- 🎯 Custom React hooks for state management
 
 ---
 
@@ -19,12 +24,18 @@
 
 | Layer         | Tech                          |
 |--------------|-------------------------------|
-| Frontend     | React Native (Expo)           |
-| Backend      | Python (Flask or Django)      |
+| Frontend     | React Native (Expo) + TypeScript |
+| UI Framework | React Navigation v7           |
+| State Management | Custom React Hooks       |
+| Backend      | Python (FastAPI)              |
+| Database     | PostgreSQL + SQLAlchemy ORM  |
+| Migrations   | Alembic                       |
 | AI           | OpenAI GPT-4 API              |
-| Database     | PostgreSQL (AWS RDS)          |
-| Hosting      | AWS (Elastic Beanstalk or ECS)|
-| Auth (Planned)| Firebase Auth / Cognito      |
+| Authentication| Firebase Auth                |
+| HTTP Client  | Axios                         |
+| CORS         | FastAPI CORS Middleware       |
+| Environment  | Python dotenv                 |
+| Server       | Uvicorn ASGI                  |
 
 ---
 
@@ -46,6 +57,18 @@ npx expo start
 ---
 
 ## 🔒 Security Setup
+
+### Backend Setup
+```bash
+cd backend
+pip install -r requirements.txt
+
+# Setup database with Alembic migrations
+alembic upgrade head
+
+# Start FastAPI development server
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
 
 ### Environment Variables
 
