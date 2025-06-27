@@ -1,5 +1,6 @@
 {
-  "python.pythonPath": "backend/.venv/bin/python",
+  "python.defaultInterpreterPath": "/Volumes/source-code/nutrition-app/backend/.venv/bin/python",
+  "python.pythonPath": "/Volumes/source-code/nutrition-app/backend/.venv/bin/python",
   "python.terminal.activateEnvironment": true,
   "python.terminal.activateEnvInCurrentTerminal": true
 }

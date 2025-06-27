@@ -1,11 +1,9 @@
 import httpx
 import os
-import json
 from typing import List, Dict, Optional
 from dotenv import load_dotenv
 
 load_dotenv()
-
 
 class USDAClient:
     """Client for USDA FoodData Central API"""
@@ -34,6 +32,7 @@ class USDAClient:
                 
                 if response.status_code == 200:
                     data = response.json()
+                    print(f"USDA search results for '{query}': {len(data.get('foods', []))} items found")
                     return data.get("foods", [])
                 else:
                     print(f"USDA API Error: {response.status_code} - {response.text}")
@@ -62,52 +61,3 @@ class USDAClient:
         except Exception as e:
             print(f"Error getting food details: {e}")
             return None
-    
-    def format_meal_data(self, food_data: Dict) -> Optional[Dict]:
-        """Convert USDA food data to meal format"""
-        try:
-            # Extract nutrients into a lookup dict
-            nutrients = {}
-            for nutrient in food_data.get("foodNutrients", []):
-                name = nutrient.get("nutrient", {}).get("name", "")
-                value = nutrient.get("amount", 0)
-                nutrients[name] = value
-            
-            # Map USDA nutrients to our meal format
-            meal_data = {
-                "description": food_data.get("description", ""),
-                "calories": nutrients.get("Energy", 0),
-                "protein": nutrients.get("Protein", 0),
-                "carbs": nutrients.get("Carbohydrate, by difference", 0),
-                "fat": nutrients.get("Total lipid (fat)", 0),
-                "fiber": nutrients.get("Fiber, total dietary", 0),
-                "sugar": nutrients.get("Sugars, total including NLEA", 0),
-                "assumptions": f"Data from USDA FoodData Central (FDC ID: {food_data.get('fdcId')})"
-            }
-            
-            return meal_data
-            
-        except Exception as e:
-            print(f"Error formatting meal data: {e}")
-            return None
-    
-    async def search_and_format(self, query: str) -> Optional[Dict]:
-        """Search for food and return formatted meal data"""
-        foods = await self.search_food(query, page_size=1)
-        
-        if not foods:
-            return None
-            
-        # Get detailed data for the first result
-        food = foods[0]
-        fdc_id = food.get("fdcId")
-        
-        if not fdc_id:
-            return None
-            
-        detailed_food = await self.get_food_details(str(fdc_id))
-        
-        if not detailed_food:
-            return None
-            
-        return self.format_meal_data(detailed_food)
