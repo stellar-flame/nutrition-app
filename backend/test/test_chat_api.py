@@ -30,6 +30,11 @@ async def test_chat_endpoint():
         },
         {
             "name": "Complex meal (may fallback to AI)",
+            "description": "grilled chicken",
+            "user_id": "test_user_123"
+        },
+        {
+            "name": "Complex meal (may fallback to AI)",
             "description": "grilled chicken salad with mixed greens",
             "user_id": "test_user_123"
         },
