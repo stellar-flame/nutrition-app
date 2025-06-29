@@ -30,7 +30,7 @@ async def test_chat_endpoint():
         },
         {
             "name": "Complex meal (may fallback to AI)",
-            "description": "grilled chicken",
+            "description": "grilled chicken, 100g",
             "user_id": "test_user_123"
         },
         {
