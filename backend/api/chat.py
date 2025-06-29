@@ -17,6 +17,46 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 # Initialize USDA client
 usda_client = USDAClient()
 
+# Helper functions to reduce code duplication
+async def create_openai_response(client: OpenAI, model: str, input_content, instructions: str, 
+                                prev_response_id: str = None, tools: list = None) -> object:
+    """Standardized OpenAI response creation"""
+    params = {
+        "model": model,
+        "input": input_content,
+        "instructions": instructions
+    }
+    
+    if prev_response_id:
+        params["previous_response_id"] = prev_response_id
+    if tools:
+        params["tools"] = tools
+        params["tool_choice"] = "auto"
+    
+    return client.responses.create(**params)
+
+def create_error_response(message: str, conversation_id: str) -> ChatResponse:
+    """Standardized error response creation"""
+    return ChatResponse(
+        message=message,
+        conversation_id=conversation_id
+    )
+
+def extract_response_text(response) -> str:
+    """Extract and clean text from OpenAI response"""
+    if response.output and response.output[0].content:
+        return response.output[0].content[0].text.strip()
+    return ""
+
+def clean_json_text(text: str) -> str:
+    """Remove markdown code blocks from JSON text"""
+    import re
+    clean_text = text.strip()
+    clean_text = re.sub(r'^```json\s*', '', clean_text)
+    clean_text = re.sub(r'^```\s*', '', clean_text)
+    clean_text = re.sub(r'\s*```$', '', clean_text)
+    return clean_text.strip()
+
 def filter_usda_json(usda_data: dict) -> dict:
     """Filter USDA JSON to essential fields only to reduce token usage"""
     filtered = {
@@ -89,7 +129,7 @@ async def get_usda_nutrition_details(user_description: str, fdc_id: str) -> dict
 
 
 async def prompt_for_food_lookup(client: OpenAI, description: str, prev_response_id: str) -> dict | ChatResponse:
-    # STEP 1: Validation and USDA Search (gpt-4o-mini)
+    """STEP 1: Validation and USDA Search (gpt-4o-mini)"""
     instructions = (
         "You are a nutrition assistant. Validate the user's food description:\n\n"
         "1. If too vague (like 'chicken', 'bread', 'fruit'), respond with intent: 'chat' asking for specifics\n"
@@ -99,13 +139,10 @@ async def prompt_for_food_lookup(client: OpenAI, description: str, prev_response
         "- If too vague or search fails: Respond with intent: 'chat'"
     )
     
-    response = client.responses.create(
-        model="gpt-4o-mini",
-        input=[{"role": "user", "content": description}],
-        instructions=instructions,
-        tools=[USDA_FUNCTION],
-        tool_choice="auto",
-        previous_response_id=prev_response_id
+    response = await create_openai_response(
+        client, "gpt-4o-mini", 
+        [{"role": "user", "content": description}],
+        instructions, prev_response_id, [USDA_FUNCTION]
     )
     
     # Execute USDA search if tool was called
@@ -115,33 +152,33 @@ async def prompt_for_food_lookup(client: OpenAI, description: str, prev_response
         usda_result = await lookup_usda_nutrition(args.get("food_description", ""))
         
         if not usda_result.get("success"):
-            return ChatResponse(
-                message="I couldn't find that food in the USDA database. Could you be more specific?",
-                conversation_id= prev_response_id
+            return create_error_response(
+                "I couldn't find that food in the USDA database. Could you be more specific?",
+                prev_response_id
             )
         
         usda_result["tool_call"] = call.call_id
         usda_result["response_id"] = response.id
         return usda_result
-
     else:
         # Handle validation failure or chat response from step 1
         if response.output and response.output[0].content:
-            return ChatResponse(
-                message=response.output[0].content[0].text,
-                conversation_id=prev_response_id
+            return create_error_response(
+                extract_response_text(response),
+                prev_response_id
             )
     
 async def prompt_for_food_selection(client: OpenAI, description: str, search_results: dict) -> dict | ChatResponse:
-    print(search_results )  # Debugging line to inspect search results
+    """STEP 2: Food Selection (gpt-4o)"""
+    print(search_results)  # Debugging line to inspect search results
     if search_results.get("search_results"):
         results_text = ""
         for i, result in enumerate(search_results["search_results"], 1):
             results_text += f"{i}. {result['description']} (FDC ID: {result['fdc_id']})\n"
         
         tool_call_id = search_results["tool_call"]
-        input = [{"role": "system", "content":  f"User requested nutritional for: {description}\n"}]
-        input.append({                             
+        input_content = [{"role": "system", "content": f"User requested nutritional for: {description}\n"}]
+        input_content.append({                             
             "type": "function_call_output",
             "call_id": tool_call_id,
             "output": f"USDA options:\n{results_text}"
@@ -155,33 +192,32 @@ async def prompt_for_food_selection(client: OpenAI, description: str, search_res
         
         prev_response_id = search_results.get("response_id")
 
-        response = client.responses.create(
-            model="gpt-4o",
-            input=input,
-            instructions=instructions,
-            tools=[USDA_FUNCTION],
-            previous_response_id=prev_response_id,
+        response = await create_openai_response(
+            client, "gpt-4o", input_content, instructions, 
+            prev_response_id, [USDA_FUNCTION]
         )
         
-        selected_fdc_id = response.output[0].content[0].text.strip()
+        selected_fdc_id = extract_response_text(response)
     
         if selected_fdc_id == "none":
-            return ChatResponse(
-                message="None of the USDA results match your description well. Could you be more specific?",
-                conversation_id=prev_response_id
+            return create_error_response(
+                "None of the USDA results match your description well. Could you be more specific?",
+                prev_response_id
             )
         else:
             return {"selected_fdc_id": selected_fdc_id, "response_id": response.id}
 
 
 async def prompt_for_usda_nutrition_details(client: OpenAI, description: str, selected_food: dict) -> dict:
+    """STEP 3: Nutrition Extraction (gpt-4o-mini)"""
     fdc_id = selected_food.get("selected_fdc_id")
     prev_response_id = selected_food.get("response_id")
     nutrition_result = await get_usda_nutrition_details(description, fdc_id)
+    
     if not nutrition_result.get("success"):
-        return ChatResponse(
-            message="I had trouble getting nutrition details. Please try again.",
-            conversation_id=prev_response_id
+        return create_error_response(
+            "I had trouble getting nutrition details. Please try again.",
+            prev_response_id
         )
     
     nutrition_data = filter_usda_json(nutrition_result["nutrition_data"])
@@ -203,17 +239,18 @@ async def prompt_for_usda_nutrition_details(client: OpenAI, description: str, se
         "Respond with intent: 'log_food' and mention 'Data from USDA FoodData Central' in assumptions."
     )
     
-    input = f"User described: {description}\n\nUSDA JSON:\n{json.dumps(nutrition_data, indent=2)}"
+    input_content = f"User described: {description}\n\nUSDA JSON:\n{json.dumps(nutrition_data, indent=2)}"
     
-    response = client.responses.create(
-        model="gpt-4o-mini",
-        input=[{"role": "user", "content": input}],
-        instructions=instructions,
-        previous_response_id=prev_response_id
+    response = await create_openai_response(
+        client, "gpt-4o-mini",
+        [{"role": "user", "content": input_content}],
+        instructions, prev_response_id
     )
     
-    return {"response_text" :response.output[0].content[0].text.strip(), 
-            "response_id": response.id}
+    return {
+        "response_text": extract_response_text(response), 
+        "response_id": response.id
+    }
 
 @router.post("/openai/chat", response_model=ChatResponse)
 async def openai_chat(request: ChatRequest):
@@ -236,12 +273,7 @@ async def openai_chat(request: ChatRequest):
     prev_response_id = response.get("response_id")
     
     # Clean up markdown code blocks
-    import re
-    clean_text = response_text.strip()
-    clean_text = re.sub(r'^```json\s*', '', clean_text)
-    clean_text = re.sub(r'^```\s*', '', clean_text)
-    clean_text = re.sub(r'\s*```$', '', clean_text)
-    clean_text = clean_text.strip()
+    clean_text = clean_json_text(response_text)
     
     # Parse JSON and return nutrition estimate
     meal_data = json.loads(clean_text)
