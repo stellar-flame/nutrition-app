@@ -15,7 +15,7 @@ class USDAClient:
         if not self.api_key:
             raise ValueError("USDA_API_KEY not found in environment variables")
     
-    async def search_food(self, query: str, page_size: int = 5) -> List[Dict]:
+    async def search_food(self, query: str, page_size: int = 100) -> List[Dict]:
         """Search for foods in USDA database"""
         try:
             async with httpx.AsyncClient() as client:

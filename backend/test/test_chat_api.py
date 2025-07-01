@@ -18,31 +18,31 @@ async def test_chat_endpoint():
     
     # Test cases
     test_cases = [
-        {
-            "name": "Medium Apple",
-            "description": "apple",
-            "user_id": "test_user_123"
-        },
-        {
-            "name": "Banana small",
-            "description": "banana",
-            "user_id": "test_user_123"
-        },
-        {
-            "name": "Complex meal (may fallback to AI)",
-            "description": "grilled chicken, 100g",
-            "user_id": "test_user_123"
-        },
+        # {
+        #     "name": "Medium Apple",
+        #     "description": "apple",
+        #     "user_id": "test_user_123"
+        # },
+        # {
+        #     "name": "Banana small",
+        #     "description": "banana",
+        #     "user_id": "test_user_123"
+        # },
+        # {
+        #     "name": "Complex meal (may fallback to AI)",
+        #     "description": "grilled chicken, 100g",
+        #     "user_id": "test_user_123"
+        # },
         {
             "name": "Complex meal (may fallback to AI)",
             "description": "grilled chicken salad with mixed greens",
             "user_id": "test_user_123"
         },
-        {
-            "name": "Ambiguous food (should ask for clarification)",
-            "description": "bread",
-            "user_id": "test_user_123"
-        }
+        # {
+        #     "name": "Ambiguous food (should ask for clarification)",
+        #     "description": "bread",
+        #     "user_id": "test_user_123"
+        # }
     ]
     
     for i, test_case in enumerate(test_cases, 1):

@@ -109,3 +109,13 @@ class ChatResponse(BaseModel):
     conversation_id: str
     
     model_config = ConfigDict(from_attributes=True)
+
+class StepResponse(BaseModel):
+    """Standardized response model for LLM workflow steps"""
+    success: bool
+    response_id: str
+    tool_call_id: Optional[str] = None
+    error_message: Optional[str] = None
+    data: Optional[Dict[str, Any]] = None
+    
+    model_config = ConfigDict(from_attributes=True)
