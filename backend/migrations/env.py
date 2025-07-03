@@ -20,8 +20,8 @@ import os
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from db import Base
-from models import UserModel, MealModel  # Import all models here
+from database.connection import Base
+from database.models import UserModel, MealModel  # Import all models here
 target_metadata = Base.metadata
 
 # Get database URL from environment variable

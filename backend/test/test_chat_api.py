@@ -7,7 +7,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from api.chat import openai_chat
-from models import ChatRequest, ChatResponse
+from database.schemas import ChatRequest, ChatResponse
 
 
 async def test_chat_endpoint():
@@ -18,31 +18,36 @@ async def test_chat_endpoint():
     
     # Test cases
     test_cases = [
-        # {
-        #     "name": "Medium Apple",
-        #     "description": "apple",
-        #     "user_id": "test_user_123"
-        # },
-        # {
-        #     "name": "Banana small",
-        #     "description": "banana",
-        #     "user_id": "test_user_123"
-        # },
-        # {
-        #     "name": "Complex meal (may fallback to AI)",
-        #     "description": "grilled chicken, 100g",
-        #     "user_id": "test_user_123"
-        # },
+        {
+            "name": "Medium Apple",
+            "description": "apple",
+            "user_id": "test_user_123"
+        },
+        {
+            "name": "Ambiguous food (should ask for clarification)",
+            "description": "Greek yoghurt, chia seeds, granola, and honey",
+            "user_id": "test_user_123"
+        },
+        {
+            "name": "Banana small",
+            "description": "banana",
+            "user_id": "test_user_123"
+        },
+        {
+            "name": "Complex meal (may fallback to AI)",
+            "description": "grilled chicken, 100g",
+            "user_id": "test_user_123"
+        },
         {
             "name": "Complex meal (may fallback to AI)",
             "description": "grilled chicken salad with mixed greens",
             "user_id": "test_user_123"
         },
-        # {
-        #     "name": "Ambiguous food (should ask for clarification)",
-        #     "description": "bread",
-        #     "user_id": "test_user_123"
-        # }
+        {
+            "name": "Ambiguous food (should ask for clarification)",
+            "description": "bread",
+            "user_id": "test_user_123"
+        }
     ]
     
     for i, test_case in enumerate(test_cases, 1):
@@ -64,15 +69,16 @@ async def test_chat_endpoint():
             # Print response
             print("✅ Response received:")
             
-            if hasattr(response, 'meal') and response.meal:
-                print("📊 Meal data:")
-                meal = response.meal
-                print(f"  Description: {meal.get('description', 'N/A')}")
-                print(f"  Calories: {meal.get('calories', 0)}")
-                print(f"  Protein: {meal.get('protein', 0)}g")
-                print(f"  Carbs: {meal.get('carbs', 0)}g")
-                print(f"  Fat: {meal.get('fat', 0)}g")
-                print(f"  Fiber: {meal.get('fiber', 0)}g")
+            if hasattr(response, 'meals') and response.meals:
+                print(f"📊 {len(response.meals)} Meal(s) found:")
+                for i, meal in enumerate(response.meals, 1):
+                    print(f"  Meal {i}:")
+                    print(f"    Description: {meal.get('description', 'N/A')}")
+                    print(f"    Calories: {meal.get('calories', 0)}")
+                    print(f"    Protein: {meal.get('protein', 0)}g")
+                    print(f"    Carbs: {meal.get('carbs', 0)}g")
+                    print(f"    Fat: {meal.get('fat', 0)}g")
+                    print(f"    Fiber: {meal.get('fiber', 0)}g")
                 print(f"  Assumptions: {meal.get('assumptions', 'N/A')}")
                 
             elif hasattr(response, 'message') and response.message:

@@ -3,7 +3,7 @@ OpenAI helper functions and utilities for the nutrition app.
 """
 from typing import Union
 from openai import OpenAI
-from models import ChatResponse
+from database.schemas import ChatResponse
 import re
 import json
 

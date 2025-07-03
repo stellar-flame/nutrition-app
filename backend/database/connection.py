@@ -1,3 +1,7 @@
+"""
+Database configuration and connection management.
+This module handles database connection setup, session management, and engine configuration.
+"""
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
@@ -39,7 +43,10 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 def get_db():
-    """Dependency for getting DB session"""
+    """
+    Dependency for getting DB session.
+    This is typically used with FastAPI's Depends() for automatic session management.
+    """
     db = SessionLocal()
     try:
         yield db
@@ -47,5 +54,15 @@ def get_db():
         db.close()
 
 def init_db():
-    """Initialize the database (create tables)"""
+    """
+    Initialize the database by creating all tables.
+    This should be called once when setting up the application.
+    """
     Base.metadata.create_all(bind=engine)
+
+def get_db_session():
+    """
+    Get a database session for manual session management.
+    Remember to close the session when done.
+    """
+    return SessionLocal()

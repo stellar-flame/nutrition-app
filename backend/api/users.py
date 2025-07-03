@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Path, HTTPException, Depends
 from sqlalchemy.orm import Session
 from math import floor
-from crud import create_user_profile, get_user_profile, update_user_profile
-from models import UserProfile, UserProfileResponse
+from database.crud import create_user_profile, get_user_profile, update_user_profile
+from database.schemas import UserProfile, UserProfileResponse
 from utils import calculate_bmr, calculate_age
-from db import get_db
+from database.connection import get_db
 
 router = APIRouter()
 

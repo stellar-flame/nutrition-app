@@ -2,7 +2,7 @@ import os
 import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from db import init_db
+from database.connection import init_db
 from api.chat import router as chat_router
 from api.meals import router as meals_router
 from api.users import router as users_router
