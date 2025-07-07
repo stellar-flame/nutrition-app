@@ -39,6 +39,18 @@ const dbSecret = new secretsmanager.Secret(stack, 'DatabaseSecret', {
   },
 });
 
+// Create API keys secret (you'll need to populate these manually)
+const apiKeysSecret = new secretsmanager.Secret(stack, 'ApiKeysSecret', {
+  description: 'API keys for external services',
+  secretStringValue: cdk.SecretValue.unsafePlainText(JSON.stringify({
+    openai_api_key: 'your-openai-key-here',
+    usda_api_key: 'your-usda-key-here',
+    firebase_project_id: 'your-firebase-project-id',
+    firebase_private_key: 'your-firebase-private-key',
+    firebase_client_email: 'your-firebase-client-email'
+  }))
+});
+
 // Note: ECR repository is created via GitHub Actions workflow
 // We reference an existing repository here
 const repositoryUri = `${cdk.Aws.ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/nutrition-app-repo`;
@@ -99,18 +111,21 @@ const fastApiLambda = new lambda.DockerImageFunction(stack, 'FastApiLambda', {
     DB_NAME: 'fast_api_db',
     DB_USER: 'postgres',
     SQL_ECHO: 'false',
-    // API keys
-    OPENAI_API_KEY: process.env.OPENAI_API_KEY || 'your-openai-api-key',
-    USDA_API_KEY: process.env.USDA_API_KEY || 'your-usda-api-key',
-    FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID || 'your-project-id',
-    FIREBASE_PRIVATE_KEY: process.env.FIREBASE_PRIVATE_KEY || 'your-private-key',
-    FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL || 'your-client-email',
+    // API keys from secrets manager
+    OPENAI_API_KEY: apiKeysSecret.secretValueFromJson('openai_api_key').unsafeUnwrap(),
+    USDA_API_KEY: apiKeysSecret.secretValueFromJson('usda_api_key').unsafeUnwrap(),
+    FIREBASE_PROJECT_ID: apiKeysSecret.secretValueFromJson('firebase_project_id').unsafeUnwrap(),
+    FIREBASE_PRIVATE_KEY: apiKeysSecret.secretValueFromJson('firebase_private_key').unsafeUnwrap(),
+    FIREBASE_CLIENT_EMAIL: apiKeysSecret.secretValueFromJson('firebase_client_email').unsafeUnwrap(),
     ALLOWED_ORIGINS: '*',
   },
 });
 
 // Grant Lambda access to the database secret
 dbSecret.grantRead(fastApiLambda);
+
+// Grant Lambda access to the API keys secret
+apiKeysSecret.grantRead(fastApiLambda);
 
 // Add environment variable for database password from secret
 fastApiLambda.addEnvironment('DB_PASSWORD_SECRET_ARN', dbSecret.secretArn);
@@ -141,6 +156,11 @@ new cdk.CfnOutput(stack, 'DatabaseEndpoint', {
 new cdk.CfnOutput(stack, 'DatabaseSecretArn', {
   value: dbSecret.secretArn,
   description: 'Database credentials secret ARN',
+});
+
+new cdk.CfnOutput(stack, 'ApiKeysSecretArn', {
+  value: apiKeysSecret.secretArn,
+  description: 'API keys secret ARN',
 });
 
 new cdk.CfnOutput(stack, 'EcrRepoUri', {
