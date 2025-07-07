@@ -65,6 +65,35 @@ jobs:
       run: |
         npx cdk deploy --require-approval never
         
+    - name: Setup Python for database initialization
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        
+    - name: Install Python dependencies
+      working-directory: backend
+      run: |
+        pip install -r requirements.txt
+        
+    - name: Initialize AWS Database
+      working-directory: backend
+      run: |
+        # Get database credentials from AWS Secrets Manager
+        DB_SECRET_ARN=$(aws cloudformation describe-stacks --stack-name NutritionAppDockerStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseSecretArn`].OutputValue' --output text)
+        DB_ENDPOINT=$(aws cloudformation describe-stacks --stack-name NutritionAppDockerStack --query 'Stacks[0].Outputs[?OutputKey==`DatabaseEndpoint`].OutputValue' --output text)
+        
+        # Get database password from secrets manager
+        DB_PASSWORD=$(aws secretsmanager get-secret-value --secret-id $DB_SECRET_ARN --query SecretString --output text | jq -r .password)
+        
+        # Run database initialization script with arguments (no .env.aws file needed)
+        python scripts/init_aws_db.py \
+          --db-host "$DB_ENDPOINT" \
+          --db-port 5432 \
+          --db-user postgres \
+          --db-password "$DB_PASSWORD" \
+          --db-name fast_api_db \
+          --auto-confirm
+        
     - name: Get API Gateway URL
       run: |
         aws apigateway get-rest-apis --query 'items[?name==`NutritionApi`].[id,name]' --output table || true

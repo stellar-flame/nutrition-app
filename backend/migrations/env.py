@@ -41,7 +41,9 @@ if not DATABASE_URL:
     if all([DB_HOST, DB_PORT, DB_USER, DB_NAME]):
         # URL encode the password to handle special characters
         encoded_password = quote_plus(DB_PASSWORD) if DB_PASSWORD else ""
-        DATABASE_URL = f"postgresql://{DB_USER}:{encoded_password}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+        # Add SSL requirement for AWS RDS
+        ssl_param = "?sslmode=require" if ".amazonaws.com" in DB_HOST else ""
+        DATABASE_URL = f"postgresql://{DB_USER}:{encoded_password}@{DB_HOST}:{DB_PORT}/{DB_NAME}{ssl_param}"
     else:
         # Default for local development
         DATABASE_URL = "postgresql://localhost/nutrition_app"
