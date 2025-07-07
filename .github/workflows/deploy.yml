@@ -1,0 +1,70 @@
+name: Deploy Backend to AWS
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-east-1
+        
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: cdk-docker/package-lock.json
+        
+    - name: Install CDK dependencies
+      working-directory: cdk-docker
+      run: npm ci
+      
+    - name: Get AWS Account ID
+      id: aws-account
+      run: |
+        AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+        echo "account-id=$AWS_ACCOUNT_ID" >> $GITHUB_OUTPUT
+        echo "AWS Account ID: $AWS_ACCOUNT_ID"
+        
+    - name: Login to Amazon ECR
+      run: |
+        aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ steps.aws-account.outputs.account-id }}.dkr.ecr.us-east-1.amazonaws.com
+        
+    - name: Build Docker image
+      working-directory: backend
+      run: |
+        docker build --platform linux/amd64 --provenance=false -t nutrition-app-repo:latest .
+        
+    - name: Create ECR repository if needed
+      run: |
+        aws ecr describe-repositories --repository-names nutrition-app-repo --region us-east-1 || \
+        aws ecr create-repository --repository-name nutrition-app-repo --region us-east-1
+        echo "ECR repository ready"
+        
+    - name: Tag and push Docker image
+      run: |
+        ECR_REPO_URI="${{ steps.aws-account.outputs.account-id }}.dkr.ecr.us-east-1.amazonaws.com/nutrition-app-repo"
+        docker tag nutrition-app-repo:latest $ECR_REPO_URI:latest
+        docker push $ECR_REPO_URI:latest
+        echo "Image pushed to: $ECR_REPO_URI:latest"
+        
+    - name: Deploy full CDK stack
+      working-directory: cdk-docker
+      run: |
+        npx cdk deploy --require-approval never
+        
+    - name: Get API Gateway URL
+      run: |
+        aws apigateway get-rest-apis --query 'items[?name==`NutritionApi`].[id,name]' --output table || true

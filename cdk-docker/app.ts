@@ -39,12 +39,9 @@ const dbSecret = new secretsmanager.Secret(stack, 'DatabaseSecret', {
   },
 });
 
-// Create an ECR repository to store the Docker image
-const repository = new ecr.Repository(stack, 'FastApiLambdaRepository', {
-  repositoryName: 'nutrition-app-repo', // Explicitly name the repository
-  removalPolicy: cdk.RemovalPolicy.DESTROY, // Automatically delete on stack destroy
-  autoDeleteImages: true, // Automatically delete images on removal
-});
+// Note: ECR repository is created via GitHub Actions workflow
+// We reference an existing repository here
+const repositoryUri = `${cdk.Aws.ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com/nutrition-app-repo`;
 
 // Create security group for RDS - allow connections from anywhere (for testing)
 const dbSecurityGroup = new ec2.SecurityGroup(stack, 'DatabaseSecurityGroup', {
@@ -86,9 +83,12 @@ const database = new rds.DatabaseInstance(stack, 'NutritionDatabase', {
 
 // Create Lambda function using an image from the ECR repository
 const fastApiLambda = new lambda.DockerImageFunction(stack, 'FastApiLambda', {
-  code: lambda.DockerImageCode.fromEcr(repository, {
-    tagOrDigest: 'latest', // Use the 'latest' tag
-  }),
+  code: lambda.DockerImageCode.fromEcr(
+    ecr.Repository.fromRepositoryName(stack, 'ExistingRepo', 'nutrition-app-repo'),
+    {
+      tagOrDigest: 'latest', // Use the 'latest' tag
+    }
+  ),
   timeout: cdk.Duration.seconds(30),
   memorySize: 512,
   architecture: lambda.Architecture.X86_64,
@@ -144,7 +144,7 @@ new cdk.CfnOutput(stack, 'DatabaseSecretArn', {
 });
 
 new cdk.CfnOutput(stack, 'EcrRepoUri', {
-  value: repository.repositoryUri,
+  value: repositoryUri,
   description: 'ECR Repository URI for the Lambda function',
 });
 
