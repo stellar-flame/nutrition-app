@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func, cast, Date
-from models import MealModel, UserModel, MealCreate, UserProfile
+from database.models import MealModel, UserModel
+from database.schemas import MealCreate, UserProfile
 from datetime import datetime
 import uuid
 from fastapi import HTTPException

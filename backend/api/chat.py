@@ -1,141 +1,223 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from openai import OpenAI
-
 from datetime import datetime
 import os
+import json
 from dotenv import load_dotenv
-from models import ChatRequest, ChatResponse
+from database.schemas import ChatRequest, ChatResponse, StepResponse
+from client.usda_client import USDAClient
+from llm.tools import USDA_FUNCTION
+from llm.helpers import (
+    create_openai_response, 
+    extract_response_text, 
+    clean_json_text, 
+    filter_usda_json
+)
+from llm.prompts import (
+    LOOKUP_PROMPT,
+    SELECTION_PROMPT,
+    USDA_EXTRACTION_PROMPT,
+    LLM_ESTIMATION_PROMPT
+)
+
 
 router = APIRouter()
 
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-# Define the instructions for the Responses API
-ASSISTANT_INSTRUCTIONS = (
-    "You are a nutrition assistant. When the user describes a meal, respond using JSON with the following fields:\n\n"
-    "{\n"
-    '  "intent": "log_food",\n'
-    '  "description": string,\n'
-    '  "calories": number,\n'
-    '  "protein": number,\n'
-    '  "fiber": number,\n'
-    '  "carbs": number,\n'
-    '  "fat": number,\n'
-    '  "sugar": number,\n'
-    '  "assumptions": string (optional: any assumptions made about portion size, brand, or preparation method)\n'
-    "}\n\n"
-    "Always fill in numerical values based on your best estimates. "
-    "If you cannot estimate a value, respond with using JSON with the following fields:\n\n. "
-    "{\n"
-    ' "intent": "chat",\n'
-    ' "response": "...(explaining why you can\'t estimate the value, e.g., \'Is it whole grain or white bread?\')",\n'
-    "}\n\n"
-    "Respond with only the JSON block, no extra commentary or explanation."
-)
+
+# Initialize USDA client
+usda_client = USDAClient()
+
+# Define USDA lookup function for OpenAI tools
+async def lookup_usda_nutrition(food_description: str) -> dict:
+    """Look up nutrition data from USDA FoodData Central"""
+    try:
+        # Get multiple search results for OpenAI to choose from
+        foods = await usda_client.search_food(food_description, page_size=100)
+        if foods:
+            # Format the search results for OpenAI to analyze
+            formatted_results = []
+            for food in foods:
+                formatted_results.append({
+                    "description": food.get("description", ""),
+                    "fdc_id": food.get("fdcId", ""),
+                    "data_type": food.get("dataType", "")
+                })
+            
+            return {
+                "success": True,
+                "search_results": formatted_results,
+                "count": len(formatted_results)
+            }
+        return {"success": False, 
+                "error": f"No USDA data found for {food_description}"}
+    except Exception as e:
+        return {"success": False, 
+                "error": str(e)}
+
+
+async def get_usda_nutrition_details(fdc_id: str) -> dict:
+    """Fetch detailed nutrition data from USDA and format it"""
+    try:
+        detailed_food = await usda_client.get_food_details(fdc_id)
+        if not detailed_food:
+            return {"success": False, "error": "Could not fetch food details"}
+        
+        filtered_food = filter_usda_json(detailed_food)
+
+        return {
+            "success": True,
+            "nutrition_data": filtered_food,
+            "food_description": detailed_food.get('description')
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+async def food_lookup(client: OpenAI, description: str, prev_response_id: str) -> ChatResponse:
+    response = await create_openai_response(
+        client, "gpt-4o-mini", 
+        [{"role": "user", "content": description}],
+        LOOKUP_PROMPT, prev_response_id, [USDA_FUNCTION]
+    )
+    
+    search_results = []      
+    for output in response.output or []:
+        if output.type == "function_call":
+            call = output
+            args = json.loads(call.arguments)
+            food_description = args.get("food_description", "")
+    
+            usda_result = await lookup_usda_nutrition(food_description)
+
+            # Add call_id and description to each search result
+            results_text = f"Result for Food Item: {food_description}:\n"
+            if (usda_result.get("success")):
+                for i, result in enumerate(usda_result.get("search_results", []), 1):
+                    results_text += f"{i}. {result['description']} (FDC ID: {result['fdc_id']})\n"
+            else:
+                results_text += f"Error: {usda_result.get('error', 'No results found')}\n"
+
+            # Append the formatted result to search_results
+            search_results.append({"output": results_text, "call_id": call.call_id, "food_description": food_description })
+        else:
+            if response.output and response.output[0].content:
+                return ChatResponse(
+                    conversation_id=response.id,
+                    message=extract_response_text(response)
+                )
+
+    # If we have search results, prepare the input for the next step
+    if search_results:
+        input_content = [{"role": "system", "content": f"User requested nutritional for: {description}\n"}]
+        # print(r.get("llm_description", "") + " : " + json.dumps(r.get("output"), indent=2))
+        for r in search_results:
+           input_content.append({                           
+            "type": "function_call_output",
+            "call_id": r.get("call_id"),
+            "output": r.get("output")   
+           })
+        
+
+        response = await create_openai_response(
+            client, "gpt-4o", input_content, SELECTION_PROMPT, 
+            response.id
+        )
+
+        response_text = extract_response_text(response)
+        print(response_text)
+
+        clean_text = clean_json_text(response_text)
+        print(clean_text)
+
+        selected_items = json.loads(clean_text)
+
+        print (f"selected: {selected_items}")   
+
+        meal_macros = []
+        for item in selected_items:
+            nutritional_estimate = None
+            fdc_id = item.get("id", "none")
+            if fdc_id != "none":
+                print(f"Processing FDC ID: {fdc_id}")
+                nutrition_result = await get_usda_nutrition_details(fdc_id)
+                
+                if nutrition_result.get("success"):
+                    nutrition_data = filter_usda_json(nutrition_result["nutrition_data"])
+                    input_content = f"USDA returned nutritional estimate for: {fdc_id}\n\nUSDA JSON:\n{json.dumps(nutrition_data, indent=2)}"
+                    response = await create_openai_response(
+                        client, "gpt-4o-mini",
+                        [{"role": "user", "content": input_content}],
+                        USDA_EXTRACTION_PROMPT, response.id
+                    )
+
+                    response_text = extract_response_text(response)
+                    nutritional_estimate = extract_nutrition_estimate(response_text, description)
+                    print(f"Nutritional estimate from USDA for {fdc_id}: {nutritional_estimate}")
+            
+            if nutritional_estimate is None:
+                food_item = item.get("food_item")
+                print(f"LLM Processing for {food_item}")
+                response = await create_openai_response(
+                    client, "gpt-4o-mini",
+                    [{"role": "user", "content": food_item}],
+                    LLM_ESTIMATION_PROMPT, response.id
+                )
+                response_text = extract_response_text(response)
+                print(f"Response text for {food_item}: {response_text}")
+                nutritional_estimate = extract_nutrition_estimate(response_text, food_item)
+                print(f"Nutritional estimate for {food_item}: {nutritional_estimate}")
+            
+            if nutritional_estimate is not None:
+                meal_macros.append(nutritional_estimate)
+        
+        print(f"Meal macros collected: {meal_macros}")
+        if not meal_macros:
+            return ChatResponse(
+                conversation_id=response.id,
+                message=f"{description} cannot be estimated. Could you please try again?"
+            )
+        else:
+            print(f"Returning {len(meal_macros)} meal(s): {meal_macros}")
+            return ChatResponse(
+                conversation_id=response.id,
+                meals=meal_macros
+            )
+
+def extract_nutrition_estimate(response_text: str, description: str) -> dict | None:
+    # # Clean up markdown code blocks
+    clean_text = clean_json_text(response_text)
+    
+    # # Parse JSON and return nutrition estimate
+    meal_data = json.loads(clean_text)
+    
+    print(f"Parsed meal data: {meal_data}")
+    if meal_data.get("intent") == "log_food":
+        nutrition_estimate = {
+            "id": None,
+            "timestamp": datetime.now().isoformat(),
+            "calories": meal_data.get("calories", 0),
+            "protein": meal_data.get("protein", 0),
+            "fiber": meal_data.get("fiber", 0),
+            "carbs": meal_data.get("carbs", 0),
+            "fat": meal_data.get("fat", 0),
+            "sugar": meal_data.get("sugar", 0),
+            "description": meal_data.get("description", description),
+            "assumptions": meal_data.get("assumptions", None)
+        }
+        return nutrition_estimate
+    else:
+        return None
 
 
 @router.post("/openai/chat", response_model=ChatResponse)
 async def openai_chat(request: ChatRequest):
-    # Create a new OpenAI client for each request
     client = OpenAI(api_key=OPENAI_API_KEY)
-    
-    # Build input for Responses API
-    input_messages = [
-        {
-            "role": "user",
-            "content": request.description
-        }
-    ]
-    
-    # Create response using Responses API with structured outputs
-    response_params = {
-        "model": "gpt-4o",
-        "input": input_messages,
-        "instructions": ASSISTANT_INSTRUCTIONS,
-        "text": {
-            "format": {
-                "type": "json_schema",
-                "name": "nutrition_response",
-                "schema": {
-                    "type": "object",
-                    "properties": {
-                        "intent": {
-                            "type": "string", 
-                            "enum": ["log_food", "chat"]
-                        },
-                        "description": {"type": "string"},
-                        "calories": {"type": "number"},
-                        "protein": {"type": "number"},
-                        "fiber": {"type": "number"},
-                        "carbs": {"type": "number"},
-                        "fat": {"type": "number"},
-                        "sugar": {"type": "number"},
-                        "assumptions": {"type": "string"},
-                        "response": {"type": "string"}
-                    },
-                    "required": ["intent", "description", "calories", "protein", "fiber", "carbs", "fat", "sugar", "assumptions", "response"],
-                    "additionalProperties": False
-                }
-            }
-        }
-    }
-    
-    # Add previous_response_id if continuing conversation
-    if request.conversation_id:
-        response_params["previous_response_id"] = request.conversation_id
-    
-    response = client.responses.create(**response_params)
-    
-    # Process the structured response
-    if response.output and len(response.output) > 0:
-        try:
-            # Get the text content from the response
-            message = response.output[0]
-            if message.content and len(message.content) > 0:
-                response_text = message.content[0].text
-                # Parse the JSON from the structured output
-                import json
-                meal_data = json.loads(response_text)
-                
-                if meal_data.get("intent") == "log_food":
-                    # Use structured data directly
-                    nutrition_estimate = {
-                        "id": None,  # ID will be set later when saving to DB
-                        "user_id": request.user_id,
-                        "timestamp": datetime.now().isoformat(),
-                        "calories": meal_data.get("calories", 0),   
-                        "protein": meal_data.get("protein", 0),
-                        "fiber": meal_data.get("fiber", 0),     
-                        "carbs": meal_data.get("carbs", 0),
-                        "fat": meal_data.get("fat", 0),
-                        "sugar": meal_data.get("sugar", 0),
-                        "description": meal_data.get("description", request.description),
-                        "assumptions": meal_data.get("assumptions", None)
-                    }
-                    return ChatResponse(
-                        meal=nutrition_estimate,
-                        conversation_id=response.id,
-                    )
-                elif meal_data.get("intent") == "chat": 
-                    return ChatResponse(
-                        message=meal_data.get("response"),
-                        conversation_id=response.id,
-                    )
-                else:
-                    return ChatResponse(
-                        message="I didn't understand that response. Could you try again?",
-                        conversation_id=response.id
-                    )
-        except Exception as e:
-            print(f"Error processing structured response: {e}")
-            return ChatResponse(
-                message="I had trouble processing the nutrition data. Could you try providing more details?",
-                conversation_id=response.id if response else None
-            )
-    else:   
-        print(f"Response failed - no structured output received")
-        raise HTTPException(status_code=500, detail="OpenAI response failed")        
+    prev_response_id = request.conversation_id
 
+    chat_response = await food_lookup(client, request.description, prev_response_id)
+    return chat_response
 
 
 

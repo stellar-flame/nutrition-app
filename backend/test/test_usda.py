@@ -1,6 +1,12 @@
 import asyncio
 import json
-from usda_client import USDAClient
+import sys
+import os
+
+# Add parent directory to Python path to import usda_client
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from client.usda_client import USDAClient
 
 
 async def test_usda_api():
@@ -13,7 +19,7 @@ async def test_usda_api():
         
         # Test foods to search for
         test_foods = [
-            "apple",
+            "apple raw",
             "banana medium",
             "chicken breast",
             "white rice cooked",
