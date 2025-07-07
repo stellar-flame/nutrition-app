@@ -73,3 +73,8 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+
+# CDK
+cdk.out/
+*.d.ts
+*.js.map

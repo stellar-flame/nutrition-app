@@ -3,7 +3,7 @@ from datetime import date, datetime
 from sqlalchemy.orm import Session
 from database.crud import get_meals, create_meal, clear_meals, delete_meal as crud_delete_meal, get_meal
 from database.schemas import MealCreate, MealResponse
-from database.connection import get_db
+from database.db import get_db
 
 router = APIRouter()
 

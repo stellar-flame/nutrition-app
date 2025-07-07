@@ -4,7 +4,7 @@ from math import floor
 from database.crud import create_user_profile, get_user_profile, update_user_profile
 from database.schemas import UserProfile, UserProfileResponse
 from utils import calculate_bmr, calculate_age
-from database.connection import get_db
+from database.db import get_db
 
 router = APIRouter()
 

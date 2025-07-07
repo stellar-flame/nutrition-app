@@ -3,7 +3,7 @@ from firebase_admin import auth as firebase_auth
 from pydantic import BaseModel
 from utils import verify_firebase_token, get_firebase_app
 from sqlalchemy.orm import Session
-from database.connection import get_db
+from database.db import get_db
 from database.models import UserModel
 from datetime import datetime
 

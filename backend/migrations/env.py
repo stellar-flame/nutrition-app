@@ -26,17 +26,55 @@ target_metadata = Base.metadata
 
 # Get database URL from environment variable
 from dotenv import load_dotenv
+from urllib.parse import quote_plus
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-# For local development with PostgreSQL as default
+# If no DATABASE_URL, construct from individual components (for AWS setup)
 if not DATABASE_URL:
-    DATABASE_URL = "postgresql://localhost/nutrition_app"
+    DB_HOST = os.getenv("DB_HOST")
+    DB_PORT = os.getenv("DB_PORT") 
+    DB_USER = os.getenv("DB_USER")
+    DB_PASSWORD = os.getenv("DB_PASSWORD")
+    DB_NAME = os.getenv("DB_NAME")
+    
+    if all([DB_HOST, DB_PORT, DB_USER, DB_NAME]):
+        # URL encode the password to handle special characters
+        encoded_password = quote_plus(DB_PASSWORD) if DB_PASSWORD else ""
+        DATABASE_URL = f"postgresql://{DB_USER}:{encoded_password}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+    else:
+        # Default for local development
+        DATABASE_URL = "postgresql://localhost/nutrition_app"
 elif DATABASE_URL.startswith("postgres://"):
     # Heroku/Vercel style URLs need to be adapted for SQLAlchemy
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-config.set_main_option("sqlalchemy.url", DATABASE_URL)
+config.set_main_option("sqlalchemy.url", "driver://user:pass@localhost/dbname")
+
+# Override with actual database URL at runtime
+def get_database_url():
+    """Get the actual database URL, handling AWS environment variables"""
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    # If no DATABASE_URL, construct from individual components (for AWS setup)
+    if not DATABASE_URL:
+        DB_HOST = os.getenv("DB_HOST")
+        DB_PORT = os.getenv("DB_PORT") 
+        DB_USER = os.getenv("DB_USER")
+        DB_PASSWORD = os.getenv("DB_PASSWORD")
+        DB_NAME = os.getenv("DB_NAME")
+        
+        if all([DB_HOST, DB_PORT, DB_USER, DB_NAME]):
+            # URL encode the password to handle special characters
+            encoded_password = quote_plus(DB_PASSWORD) if DB_PASSWORD else ""
+            DATABASE_URL = f"postgresql://{DB_USER}:{encoded_password}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+        else:
+            # Default for local development
+            DATABASE_URL = "postgresql://localhost/nutrition_app"
+    elif DATABASE_URL.startswith("postgres://"):
+        # Heroku/Vercel style URLs need to be adapted for SQLAlchemy
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    
+    return DATABASE_URL
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
@@ -56,7 +94,7 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
+    url = get_database_url()
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -75,11 +113,11 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    from sqlalchemy import create_engine
+    
+    # Use our database URL instead of config
+    database_url = get_database_url()
+    connectable = create_engine(database_url, poolclass=pool.NullPool)
 
     with connectable.connect() as connection:
         context.configure(
