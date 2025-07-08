@@ -10,6 +10,9 @@ import * as path from 'path';
 
 const app = new cdk.App();
 
+// Get image digest from context (passed from GitHub Actions)
+const imageDigest = app.node.tryGetContext('imageDigest');
+
 const stack = new cdk.Stack(app, 'NutritionAppDockerStack', {
   env: {
     region: 'us-east-1',
@@ -98,7 +101,8 @@ const fastApiLambda = new lambda.DockerImageFunction(stack, 'FastApiLambda', {
   code: lambda.DockerImageCode.fromEcr(
     ecr.Repository.fromRepositoryName(stack, 'ExistingRepo', 'nutrition-app-repo'),
     {
-      tagOrDigest: 'latest', // Use the 'latest' tag
+      // Use digest if provided (from CI/CD), otherwise fall back to 'latest' tag
+      tagOrDigest: imageDigest || 'latest',
     }
   ),
   timeout: cdk.Duration.seconds(30),
@@ -162,6 +166,11 @@ new cdk.CfnOutput(stack, 'ApiKeysSecretArn', {
 new cdk.CfnOutput(stack, 'EcrRepoUri', {
   value: repositoryUri,
   description: 'ECR Repository URI for the Lambda function',
+});
+
+new cdk.CfnOutput(stack, 'LambdaImageReference', {
+  value: imageDigest ? `${repositoryUri}@${imageDigest}` : `${repositoryUri}:latest`,
+  description: 'Lambda Docker image reference (digest or tag)',
 });
 
 // Security warning

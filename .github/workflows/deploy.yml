@@ -54,16 +54,22 @@ jobs:
         echo "ECR repository ready"
         
     - name: Tag and push Docker image
+      id: push-image
       run: |
         ECR_REPO_URI="${{ steps.aws-account.outputs.account-id }}.dkr.ecr.us-east-1.amazonaws.com/nutrition-app-repo"
         docker tag nutrition-app-repo:latest $ECR_REPO_URI:latest
         docker push $ECR_REPO_URI:latest
         echo "Image pushed to: $ECR_REPO_URI:latest"
         
+        # Get the digest of the pushed image
+        IMAGE_DIGEST=$(aws ecr describe-images --repository-name nutrition-app-repo --image-ids imageTag=latest --query 'imageDetails[0].imageDigest' --output text)
+        echo "Image digest: $IMAGE_DIGEST"
+        echo "image-digest=$IMAGE_DIGEST" >> $GITHUB_OUTPUT
+        
     - name: Deploy full CDK stack
       working-directory: cdk-docker
       run: |
-        npx cdk deploy --require-approval never --force
+        npx cdk deploy --require-approval never --force --context imageDigest=${{ steps.push-image.outputs.image-digest }}
         
     - name: Setup Python for database initialization
       uses: actions/setup-python@v4
