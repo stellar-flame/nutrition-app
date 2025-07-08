@@ -111,12 +111,8 @@ const fastApiLambda = new lambda.DockerImageFunction(stack, 'FastApiLambda', {
     DB_NAME: 'fast_api_db',
     DB_USER: 'postgres',
     SQL_ECHO: 'false',
-    // API keys from secrets manager
-    OPENAI_API_KEY: apiKeysSecret.secretValueFromJson('openai_api_key').unsafeUnwrap(),
-    USDA_API_KEY: apiKeysSecret.secretValueFromJson('usda_api_key').unsafeUnwrap(),
-    FIREBASE_PROJECT_ID: apiKeysSecret.secretValueFromJson('firebase_project_id').unsafeUnwrap(),
-    FIREBASE_PRIVATE_KEY: apiKeysSecret.secretValueFromJson('firebase_private_key').unsafeUnwrap(),
-    FIREBASE_CLIENT_EMAIL: apiKeysSecret.secretValueFromJson('firebase_client_email').unsafeUnwrap(),
+    // API keys secret ARN (fetch at runtime)
+    API_KEYS_SECRET_ARN: apiKeysSecret.secretArn,
     ALLOWED_ORIGINS: '*',
   },
 });

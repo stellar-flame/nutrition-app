@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from openai import OpenAI
 from datetime import datetime
 import os
@@ -19,12 +19,10 @@ from llm.prompts import (
     USDA_EXTRACTION_PROMPT,
     LLM_ESTIMATION_PROMPT
 )
+from utils.secrets import get_secret
 
 
 router = APIRouter()
-
-load_dotenv()
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Initialize USDA client
 usda_client = USDAClient()
@@ -213,7 +211,11 @@ def extract_nutrition_estimate(response_text: str, description: str) -> dict | N
 
 @router.post("/openai/chat", response_model=ChatResponse)
 async def openai_chat(request: ChatRequest):
-    client = OpenAI(api_key=OPENAI_API_KEY)
+    openai_api_key = get_secret('openai_api_key')
+    if not openai_api_key:
+        raise HTTPException(status_code=500, detail="OpenAI API key not available")
+    
+    client = OpenAI(api_key=openai_api_key)
     prev_response_id = request.conversation_id
 
     chat_response = await food_lookup(client, request.description, prev_response_id)

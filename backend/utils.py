@@ -32,28 +32,43 @@ def get_firebase_app():
         return _firebase_app
 
 def _initialize_firebase():
-    """Initialize Firebase using environment variables - internal function"""
-    # Verify required environment variables
-    required_vars = ["FIREBASE_PROJECT_ID", "FIREBASE_PRIVATE_KEY", "FIREBASE_CLIENT_EMAIL"]
-    missing_vars = [var for var in required_vars if not os.getenv(var)]
+    """Initialize Firebase using secrets from AWS Secrets Manager - internal function"""
+    from utils.secrets import get_secret
     
-    if missing_vars:
+    # Get Firebase configuration from secrets
+    project_id = get_secret('firebase_project_id')
+    private_key = get_secret('firebase_private_key')
+    client_email = get_secret('firebase_client_email')
+    
+    # Fallback to environment variables for local development
+    if not project_id:
+        project_id = os.getenv("FIREBASE_PROJECT_ID")
+    if not private_key:
+        private_key = os.getenv("FIREBASE_PRIVATE_KEY")
+    if not client_email:
+        client_email = os.getenv("FIREBASE_CLIENT_EMAIL")
+    
+    # Verify required variables
+    if not project_id or not private_key or not client_email:
+        missing = []
+        if not project_id: missing.append("firebase_project_id")
+        if not private_key: missing.append("firebase_private_key") 
+        if not client_email: missing.append("firebase_client_email")
         raise EnvironmentError(
-            f"Missing Firebase env vars: {', '.join(missing_vars)}"
+            f"Missing Firebase configuration: {', '.join(missing)}"
         )
     
-    # Get private key and handle different escape formats
-    private_key = os.getenv("FIREBASE_PRIVATE_KEY")
+    # Handle different escape formats for private key
     if "\\n" in private_key:
         private_key = private_key.replace("\\n", "\n")
     
     # Create credential dict
     cred_dict = {
         "type": os.getenv("FIREBASE_TYPE", "service_account"),
-        "project_id": os.getenv("FIREBASE_PROJECT_ID"),
+        "project_id": project_id,
         "private_key_id": os.getenv("FIREBASE_PRIVATE_KEY_ID"),
         "private_key": private_key,
-        "client_email": os.getenv("FIREBASE_CLIENT_EMAIL"),
+        "client_email": client_email,
         "client_id": os.getenv("FIREBASE_CLIENT_ID"),
         "auth_uri": os.getenv("FIREBASE_AUTH_URI", "https://accounts.google.com/o/oauth2/auth"),
         "token_uri": os.getenv("FIREBASE_TOKEN_URI", "https://oauth2.googleapis.com/token"),
