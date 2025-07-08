@@ -101,5 +101,20 @@ jobs:
           --auto-confirm
         
     - name: Get API Gateway URL
+      id: api-url
       run: |
+        API_URL=$(aws cloudformation describe-stacks --stack-name NutritionAppDockerStack --query 'Stacks[0].Outputs[?OutputKey==`ApiUrl`].OutputValue' --output text)
+        echo "url=$API_URL" >> $GITHUB_OUTPUT
+        echo "API Gateway URL: $API_URL"
+        
+    - name: Test Deployment
+      working-directory: backend
+      run: |
+        echo "🧪 Running deployment tests..."
+        python test/test_deployment.py "${{ steps.api-url.outputs.url }}"
+        
+    - name: Display Deployment Summary
+      run: |
+        echo "🎉 Deployment completed successfully!"
+        echo "📍 API Gateway URL: ${{ steps.api-url.outputs.url }}"
         aws apigateway get-rest-apis --query 'items[?name==`NutritionApi`].[id,name]' --output table || true
