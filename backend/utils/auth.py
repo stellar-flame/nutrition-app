@@ -1,12 +1,12 @@
-from math import floor
-import datetime as dt
-import re
+"""Firebase authentication utilities."""
+
 import os
 from dotenv import load_dotenv
 from firebase_admin import auth as firebase_auth
 from fastapi import HTTPException, Header
 import firebase_admin
 from firebase_admin import credentials
+from .secrets import get_secret
 
 # Load environment variables
 load_dotenv()
@@ -33,8 +33,6 @@ def get_firebase_app():
 
 def _initialize_firebase():
     """Initialize Firebase using secrets from AWS Secrets Manager - internal function"""
-    from utils.secrets import get_secret
-    
     # Get Firebase configuration from secrets
     project_id = get_secret('firebase_project_id')
     private_key = get_secret('firebase_private_key')
@@ -80,27 +78,6 @@ def _initialize_firebase():
     # Initialize the app with the credentials
     cred = credentials.Certificate(cred_dict)
     return firebase_admin.initialize_app(cred)
-
-def extract_number(value):
-    if isinstance(value, (int, float)):
-        return value
-    if isinstance(value, str):
-        match = re.search(r"[-+]?[0-9]*\.?[0-9]+", value)
-        if match:
-            return float(match.group())
-    return 0
-
-def calculate_bmr(weight_kg: float, height_cm: float, age: int, sex: str = "male") -> int:
-    if sex.lower() == "male":
-        bmr = 10 * weight_kg + 6.25 * height_cm - 5 * age + 5
-    else:
-        bmr = 10 * weight_kg + 6.25 * height_cm - 5 * age - 161
-    return floor(bmr)
-
-def calculate_age(dob) -> int:
-    today = dt.date.today()
-    age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
-    return age
 
 def verify_firebase_token(authorization: str = Header(...)) -> str:
     try:
