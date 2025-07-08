@@ -38,6 +38,13 @@ jobs:
         echo "account-id=$AWS_ACCOUNT_ID" >> $GITHUB_OUTPUT
         echo "AWS Account ID: $AWS_ACCOUNT_ID"
         
+    - name: Get commit hash
+      id: commit
+      run: |
+        COMMIT_HASH=$(git rev-parse --short HEAD)
+        echo "hash=$COMMIT_HASH" >> $GITHUB_OUTPUT
+        echo "Commit hash: $COMMIT_HASH"
+        
     - name: Login to Amazon ECR
       run: |
         aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ steps.aws-account.outputs.account-id }}.dkr.ecr.us-east-1.amazonaws.com
@@ -45,7 +52,7 @@ jobs:
     - name: Build Docker image
       working-directory: backend
       run: |
-        docker build --platform linux/amd64 --provenance=false -t nutrition-app-repo:latest .
+        docker build --platform linux/amd64 --provenance=false -t nutrition-app-repo:${{ steps.commit.outputs.hash }} .
         
     - name: Create ECR repository if needed
       run: |
@@ -56,14 +63,16 @@ jobs:
     - name: Tag and push Docker image
       run: |
         ECR_REPO_URI="${{ steps.aws-account.outputs.account-id }}.dkr.ecr.us-east-1.amazonaws.com/nutrition-app-repo"
-        docker tag nutrition-app-repo:latest $ECR_REPO_URI:latest
+        docker tag nutrition-app-repo:${{ steps.commit.outputs.hash }} $ECR_REPO_URI:${{ steps.commit.outputs.hash }}
+        docker tag nutrition-app-repo:${{ steps.commit.outputs.hash }} $ECR_REPO_URI:latest
+        docker push $ECR_REPO_URI:${{ steps.commit.outputs.hash }}
         docker push $ECR_REPO_URI:latest
-        echo "Image pushed to: $ECR_REPO_URI:latest"
+        echo "Image pushed with tag: ${{ steps.commit.outputs.hash }}"
         
     - name: Deploy full CDK stack
       working-directory: cdk-docker
       run: |
-        npx cdk deploy --require-approval never
+        npx cdk deploy --require-approval never --force
         
     - name: Setup Python for database initialization
       uses: actions/setup-python@v4
