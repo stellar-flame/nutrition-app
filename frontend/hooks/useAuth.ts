@@ -32,8 +32,8 @@ export const useAuth = (): UseAuthReturn => {
   useEffect(() => {
     console.log('🔧 Setting up Firebase auth listener...');
     
-    // onAuthStateChanged returns an unsubscribe function
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    // Web Firebase auth listener
+    const unsubscribe = onAuthStateChanged(auth, (currentUser: User | null) => {
       console.log('👤 Auth state changed:', currentUser ? 'Logged in' : 'Logged out');
       setUser(currentUser);
       setIsLoading(false); // Auth state is now determined
@@ -41,7 +41,6 @@ export const useAuth = (): UseAuthReturn => {
     });
 
     // CRITICAL: Return cleanup function to prevent memory leaks
-    // This runs when component unmounts or effect re-runs
     return () => {
       console.log('🧹 Cleaning up Firebase auth listener');
       unsubscribe();

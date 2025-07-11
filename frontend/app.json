@@ -1,12 +1,13 @@
 {
   "expo": {
-    "name": "nutrition-app",
+    "name": "NutritionAI",
     "slug": "nutrition-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "scheme": "nutritionai",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -14,17 +15,36 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.nutritionai.app"
+      "bundleIdentifier": "com.nutritionai.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "This app may access your photo library to allow you to select and share photos of your meals for nutritional analysis.",
+        "NSSpeechRecognitionUsageDescription": "This app may use speech recognition to help you input meal information and interact with the nutrition assistant."
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.nutritionai.app",
+      "versionCode": 1
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "3de5e572-aeba-4792-afe7-67341831e469"
+      }
     }
   }
 }

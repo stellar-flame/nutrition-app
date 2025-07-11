@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
+import { User } from 'firebase/auth';
 import api from '../api/axios';
 import { MealEntry } from "../types";
-import { User } from 'firebase/auth';
 
 // Define the return type for our custom hook
 interface UseMealReturn {

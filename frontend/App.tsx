@@ -21,10 +21,13 @@ import { UserProfile, NutritionNeeds } from "./types";
 import { User } from 'firebase/auth';
 
 export default function App() {
+  console.log('🚀 App starting up...');
+  
   // ✨ NEW: Use our custom hook instead of individual useState calls
   const { user, isLoading: isAuthLoading, login, logout, error: authError } = useAuth();
 
   useEffect(() => {
+    console.log('🔄 App mounted, checking Firebase connectivity...');
     fetch("https://identitytoolkit.googleapis.com")
       .then((res) => console.log("✅ Firebase reachable:", res.status))
       .catch((err) => console.error("❌ Firebase NOT reachable:", err));
