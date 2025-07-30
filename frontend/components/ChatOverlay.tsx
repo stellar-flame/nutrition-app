@@ -53,12 +53,13 @@ const ChatOverlay: React.FC<ChatOverlayProps> = ({
   const [isScrolledUp, setIsScrolledUp] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(1));
   const [conversationHistory, setConversationHistory] = useState<string[]>([]);
+  const [context, setContext] = useState<string | null>(null);
   const lastConversationLength = useRef(conversationHistory.length);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
   const [userFeedback, setUserFeedback] = useState("");
   const [pendingMeals, setPendingMeals] = useState<any[]>([]); // For multiple meals selection
-
+  const [errors, setErrors] = useState<string | null>(null);
 
    // For handling food input and conversation
   const handleFoodInput = async (input: string) => {
@@ -68,6 +69,7 @@ const ChatOverlay: React.FC<ChatOverlayProps> = ({
       const { data: result } = await api.post("/openai/chat", {
         user_id: user?.uid, // Dynamic user ID
         description: input,
+        history: context,
         conversation_id: conversationId,
         user_feedback: userFeedback || undefined,
         model: "gpt-4",
@@ -77,6 +79,7 @@ const ChatOverlay: React.FC<ChatOverlayProps> = ({
 
       // Always use the conversation ID from the response
       setConversationId(result.conversation_id);
+      setContext(result.history);
 
       if (result.message) {
         // Add AI's message to conversation history
@@ -84,7 +87,8 @@ const ChatOverlay: React.FC<ChatOverlayProps> = ({
         setConversationHistory((prev) => [...prev, `App: ${result.message}`]);
         // Add slight vibration feedback when receiving message
         Vibration.vibrate(30);
-      } else if (result.meals && result.meals.length > 0) {
+      }
+      if (result.meals && result.meals.length > 0) {
         console.log("Meals found:", result.meals.length);
         
         // Clear any existing single pending meal since we have multiple meals now
@@ -98,7 +102,7 @@ const ChatOverlay: React.FC<ChatOverlayProps> = ({
           id: index, // Add temporary ID for selection tracking
           selected: true // All meals selected by default
         }));
-        
+      
         setPendingMeals(mealsWithSelection);
         setAwaitingConfirmation(true);
 
@@ -110,6 +114,12 @@ const ChatOverlay: React.FC<ChatOverlayProps> = ({
         // Add slightly stronger vibration for meal confirmation
         Vibration.vibrate(50);
       }
+      if (result.errors && result.errors.length > 0) {
+        console.error("Errors found:", result.errors);
+        setErrors(result.errors.join(", "));
+      }
+
+
     } catch (error) {
       console.error("Error:", error);
     } finally {
@@ -257,6 +267,8 @@ const ChatOverlay: React.FC<ChatOverlayProps> = ({
     setConversationHistory([]);
     setInputText(''); 
     setPendingMeals([]); // Clear multiple meals
+    setErrors(null);
+    setContext(null);
   }
 
   const handleClose = () => {
@@ -447,46 +459,12 @@ const ChatOverlay: React.FC<ChatOverlayProps> = ({
                   </View>
                 )}
 
-                {/* Single Meal confirmation UI (fallback for legacy) */}
-                {awaitingConfirmation && pendingMeal && pendingMeals.length === 0 && (
-                  <View style={styles.confirmationContainer}>
-                    <Text style={styles.confirmationTitle}>Confirm Meal:</Text>
-                    <Text style={styles.confirmationText}>{pendingMeal.description}</Text>
-                    {pendingMeal.assumptions && (
-                      <Text style={styles.confirmationText}>{pendingMeal.assumptions}</Text>
-                    )}
-                    <Text style={styles.confirmationText}>
-                      Calories: {pendingMeal.calories.toFixed(0)}, Protein: {pendingMeal.protein?.toFixed(0)}, Fiber: {pendingMeal.fiber?.toFixed(0)},
-                      Carbs: {pendingMeal.carbs?.toFixed(0)}, Fat: {pendingMeal.fat?.toFixed(0)},
-                      Sugar: {pendingMeal.sugar?.toFixed(0)}
-                    </Text>
-                    <View style={styles.confirmationButtons}>
-                      <TouchableOpacity
-                        style={[styles.iconButton, styles.confirmButton]}
-                        onPress={async () => {
-                          try {
-                            await saveMeal(pendingMeal);
-                            handleClose();
-                          } catch (error) {
-                            console.error('Error:', error);
-                            Alert.alert('Error', 'Failed to save meal');
-                          }
-                        }}
-                      >
-                        <Text style={styles.iconButtonText}>✓</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[styles.iconButton, styles.cancelButton]}
-                        onPress={() => {
-                          cancelMeal(false);
-                          setAwaitingConfirmation(false);
-                        }}
-                      >
-                        <Text style={styles.iconButtonText}>✗</Text>
-                      </TouchableOpacity>
-                    </View>
+                {/* Error messages */}
+                {errors && (
+                  <View style={styles.errorContainer}>
+                    <Text style={styles.errorText}>{errors}</Text>
                   </View>
-                )}
+                )}      
               </ScrollView>
               
               {/* Scroll to bottom button */}
@@ -815,6 +793,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#555',
     paddingLeft: 34,
+  },
+  errorContainer: {
+    backgroundColor: '#fdecea',
+    borderRadius: 8,
+    padding: 12,
+    marginVertical: 8,
+    borderWidth: 1,
+    borderColor: '#f5c6cb',
+  },
+  errorText: {
+    color: '#b71c1c',
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });
 

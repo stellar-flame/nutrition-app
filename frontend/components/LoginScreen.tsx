@@ -42,7 +42,6 @@ const LoginScreen = ({ onLogin }: { onLogin: (idToken: string) => void }) => {
         setIsSignUp(false);
       } else {
         // Log the email and password for debugging purposes (remove in production)
-        console.log('Attempting login with:', { email, password });
 
         signInWithEmailAndPassword(auth, email, password)
             .then(async (userCredential) => {

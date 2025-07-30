@@ -41,7 +41,6 @@ class USDAClient:
                 
                 if response.status_code == 200:
                     data = response.json()
-                    print(f"USDA search results for '{query}': {len(data.get('foods', []))} items found")
                     return data.get("foods", [])
                 else:
                     print(f"USDA API Error: {response.status_code} - {response.text}")

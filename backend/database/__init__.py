@@ -4,7 +4,7 @@
 from .connection import Base, engine, SessionLocal, get_db, init_db, get_db_session
 from .models import UserModel, MealModel
 from .schemas import (
-    ChatRequest, ChatResponse, StepResponse,
+    ChatRequest, ChatResponse,
     UserProfile, UserProfileResponse,
     MealCreate, MealResponse,
     Message

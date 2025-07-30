@@ -14,11 +14,11 @@ class Message(BaseModel):
     
     model_config = ConfigDict(from_attributes=True)
 
-
 class ChatRequest(BaseModel):
     """Request model for chat/meal analysis endpoints."""
     user_id: str
     description: str
+    history: Optional[List[Dict]] = []
     conversation_id: Optional[str] = None
     user_feedback: Optional[str] = None
     model: Optional[str] = "gpt-4"
@@ -31,20 +31,11 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     """Response model for chat/meal analysis endpoints."""
     meals: Optional[List[Dict[str, Any]]] = None
+    history: Optional[List[Dict]] = []
     message: Optional[str] = None  # Generic message field for any non-meal responses
     conversation_complete: Optional[bool] = False
     conversation_id: str
-    
-    model_config = ConfigDict(from_attributes=True)
-
-
-class StepResponse(BaseModel):
-    """Standardized response model for LLM workflow steps."""
-    success: bool
-    response_id: str
-    tool_call_id: Optional[str] = None
-    error_message: Optional[str] = None
-    data: Optional[Dict[str, Any]] = None
+    errors: Optional[List[str]] = None  # List of errors encountered during processing
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -99,3 +90,12 @@ class MealResponse(BaseModel):
     timestamp: datetime
     
     model_config = ConfigDict(from_attributes=True)
+
+
+class FoodItem(BaseModel):
+    description: str
+    single_serving_size: int
+    user_serving_size: int
+   
+class FoodItemList(BaseModel):
+    items: list[FoodItem]

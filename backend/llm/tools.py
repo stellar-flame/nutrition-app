@@ -10,6 +10,14 @@ USDA_FUNCTION = {
     "parameters": {
         "type": "object",
         "properties": {
+            "user_serving_size": {
+                "type": "string",
+                "description": "User specified serving size, e.g., '1 cup', '100g'. If not specified, assume a single serving size.",
+            },
+            "single_serving_size": {
+                "type": "string",
+                "description": "Determine a typical single serving size for the food item, e.g., '100g', '1 cup'.",
+            },
             "food_description": {
                 "type": "string",
                 "description": "Optimize search term for USDA database. For fruits/vegetables, add 'raw' (e.g., 'apple raw')."

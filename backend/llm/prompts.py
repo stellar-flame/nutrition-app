@@ -1,36 +1,49 @@
 """
 Centralized prompt templates for the nutrition app LLM workflow.
 """
+INTENT_CLASSIFICATION_PROMPT = (
+        "You are a nutrition assistant. Analyze the user's message and conversation history to determine their intent.\n\n"
+        "Return ONLY valid JSON with one of these actions:\n\n"
+        "1. FOOD LOGGING - When user mentions specific foods they ate/want to log:\n"
+        '{"action": "food_lookup", "confidence": 0.9, "reasoning": "User mentioned specific foods"}\n\n'
+        "2. GENERAL CHAT - For questions, follow-ups, or general nutrition discussion:\n"
+        '{"action": "chat", "confidence": 0.8, "reasoning": "User asking nutrition question"}\n\n'
+        "CLASSIFICATION RULES:\n"
+        "- Food logging: 'I ate X', 'I had Y for lunch', 'Log 2 apples', 'Track my breakfast'\n"
+        "- General chat: 'What is protein?', 'How much should I eat?', 'Tell me about my last meal', 'What did I eat today?'\n"
+        "- Follow-up questions about previous meals: ALWAYS classify as 'chat'\n"
+        "- Questions about nutrition data from previous logs: ALWAYS classify as 'chat'\n\n"
+        "Consider the conversation history - if user is asking about previously logged food, use 'chat' action.\n"
+    )
 
 # STEP 1: Food Validation and USDA Search
-LOOKUP_PROMPT = (
-    "You are a nutrition assistant. Validate the user's food description:\n\n"
-    "This may be part of a conversation where the user describes a food they ate.\n"
-    "You should infer what they are saying from previous history:\n\n"
-    "1. Try and infer what the user means if they provide a vague description.\n"
-    "2. If specific enough (like 'grilled chicken breast', 'apple'), search USDA database\n\n"
-    "3. If too vague and cooking method matters (like 'chicken', 'bread', 'fruit', 'vegetable'), respond with intent: 'chat' asking for specifics\n"
-    "4. Assume a single portion size unless specified otherwise.\n\n"
-    "Use the lookup_usda_nutrition function to search, then respond with:\n"
-    "- If search successful: Return the search results as JSON\n"
-    "- If too vague or search fails: Respond with intent: 'chat'"
-)
+FOOD_LOOKUP_PROMPT = (
+        "You are a nutritionist. Break down the food description into specific items\n"
+        "Return a list of food items \n"
+        "For each item, return the following:\n"
+        "1. Food item description, e.g., 'yoghurt'\n"
+        "2. Single serving size always converted to grams, e.g., 30\n"
+        "3. User specified serving size always converted to grams, if not specified return single serving size\n"
+        "The following are examples of how to format the response:\n"
+        "An example: if the user says '1 cup yoghurt and 2 tbsp honey', you would return:\n"
+        "  1. yoghurt, typical single serving size: 50g, user serving size in grams: 1 cup which is 240g\n"
+        "  2. honey, typical single serving size: 1 tbsp which is 15g, user serving size in grams: 2 tbsp which is 30g\n"
+        "An example: if the user says '1 cup Sprite', you would return:\n"
+        "  1. Sprite, typical single serving size: 250ml, user serving size in grams: 1 cup which is 250g\n"
+        "An example: if the user says '3 tbsp oil', you would return:\n"
+        "  1. Oil, typical single serving size: 1 tbsp which is 14g, user serving size in grams: 3 tbsp which is 42g\n"
+    )
+
 
 # STEP 2: Food Selection from USDA Results
 SELECTION_PROMPT = (
-    "Select the BEST matching food from these USDA search results for each food item. "
+    "Select the SINGLE BEST matching food from these USDA search results for the food item. "
     "Try to match the user's description as closely as possible.\n\n"
-    "Respond with only the JSON array of selected food items:\n\n"
-    "[\n"
-    '  {\n'
-    '    "food_item": "food description",\n'
-    '    "id": "fdc_id_or_none"\n'
-    '  },\n'
-    '  {\n'
-    '    "food_item": "food description",\n'
-    '    "id": "fdc_id_or_none"\n'
-    '  }\n'
-    "]\n\n"
+    "Respond with only SINGLE JSON object:\n\n"
+    "{\n"
+    '  "food_item": "food description",\n'
+    '  "id": "fdc_id_or_none"\n'
+    '}\n'
     'If no good match exists for an item, use "none" as the id.\n'
     "Be precise and return ONLY valid JSON array format."
 )
@@ -38,8 +51,8 @@ SELECTION_PROMPT = (
 # STEP 3a: Nutrition Extraction from USDA Data
 USDA_EXTRACTION_PROMPT = (
     "Extract nutrition data from this USDA JSON and format as the required JSON response. "
-    "Look for Energy, Protein, Carbohydrate, Total lipid (fat), Fiber, Sugars. "
-    "Final response should strictly only include the following, no comments:\n\n"
+    "Look for the following macros: Energy, Protein, Carbohydrate, Total lipid (fat), Fiber, Sugars, USDA Serving Size. "
+     "Final response should strictly only include the following, no comments:\n\n"
      "{\n"
     '  "intent": "log_food",\n'
     '  "description": string,\n'
@@ -76,4 +89,19 @@ LLM_ESTIMATION_PROMPT = (
     '  "intent": "chat",\n'
     '  "message": "Could you please provide more details about the cereal? Is it a specific brand or type?"\n'
     "}\n"
+)
+
+CHAT_RESPONSE_PROMPT = (
+    "You are a helpful nutrition assistant. Based on the user's message and conversation history, "
+    "provide a helpful, accurate response about nutrition, health, or food.\n\n"
+    "Guidelines:\n"
+    "- Be conversational and friendly\n"
+    "- Provide accurate nutrition information\n"
+    "- Reference previous meals from conversation history when relevant\n"
+    "- If asked about specific foods they logged, use the nutrition data from conversation history\n"
+    "- Keep responses concise but informative\n"
+    "- If you don't have specific information, say so honestly\n\n"
+    "Conversation History:\n{history}\n\n"
+    "User Message: {message}\n\n"
+    "Response:"
 )

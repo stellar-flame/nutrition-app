@@ -192,8 +192,8 @@ def main():
     print(f"🎯 Target API: {api_url}")
     
     # Add a small delay to ensure Lambda is ready
-    print("⏳ Waiting 5 seconds for Lambda to be ready...")
-    time.sleep(5)
+    print("⏳ Waiting 10 seconds for Lambda to be ready...")
+    time.sleep(10)
     
     # Run tests
     tester = DeploymentTester(api_url)
