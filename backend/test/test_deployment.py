@@ -5,11 +5,9 @@ Tests the deployed API to ensure it's working correctly after deployment.
 """
 
 import requests
-import json
 import sys
 import os
 import time
-from typing import Optional
 
 
 class DeploymentTester:

@@ -34,7 +34,7 @@ class ChatResponse(BaseModel):
     history: Optional[List[Dict]] = []
     message: Optional[str] = None  # Generic message field for any non-meal responses
     conversation_complete: Optional[bool] = False
-    conversation_id: str
+    conversation_id: Optional[str] = None
     errors: Optional[List[str]] = None  # List of errors encountered during processing
     
     model_config = ConfigDict(from_attributes=True)

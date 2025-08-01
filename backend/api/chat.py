@@ -88,7 +88,6 @@ async def food_lookup(client: OpenAI, request: ChatRequest) -> ChatResponse:
 
     if not food_items:
         return ChatResponse(
-            conversation_id=response.id,
             message="No food items found in the description. Please provide a more detailed description."
         )
 
@@ -106,9 +105,9 @@ async def food_lookup(client: OpenAI, request: ChatRequest) -> ChatResponse:
                 client,
                 "gpt-4o-mini",
                 [{"role": "user", "content": f"User requested nutritional for: {item.description}, USDA returned {results_text}\n"}],
-                SELECTION_PROMPT,
-                response.id
+                SELECTION_PROMPT
             )
+
             response_text = extract_response_text(response)
             clean_text = clean_json_text(response_text)
             selected_item = json.loads(clean_text)
@@ -124,8 +123,7 @@ async def food_lookup(client: OpenAI, request: ChatRequest) -> ChatResponse:
                 response = await create_openai_response(
                     client, "gpt-4o-mini",
                     [{"role": "user", "content": input_content}],
-                    USDA_EXTRACTION_PROMPT, response.id
-                )
+                    USDA_EXTRACTION_PROMPT                )
                 response_text = extract_response_text(response)
                 clean_text = clean_json_text(response_text)
                 nutritional_estimate = extract_nutrition_estimate(clean_text, item)
@@ -136,7 +134,7 @@ async def food_lookup(client: OpenAI, request: ChatRequest) -> ChatResponse:
             response = await create_openai_response(
                 client, "gpt-4o-mini",
                 [{"role": "user", "content": item_lookup}],
-                LLM_ESTIMATION_PROMPT, response.id
+                LLM_ESTIMATION_PROMPT
             )
             response_text = extract_response_text(response)
             nutritional_estimate = extract_nutrition_estimate(response_text, item)
@@ -147,7 +145,6 @@ async def food_lookup(client: OpenAI, request: ChatRequest) -> ChatResponse:
             errors.append(f"Could not estimate nutrition for {item.description}")
 
     return ChatResponse(
-        conversation_id=response.id,
         message="Nutrition lookup completed",
         meals=meal_results,
         errors=errors
@@ -222,14 +219,12 @@ async def chat_action(client: OpenAI, request: ChatRequest) -> ChatResponse:
         generated_message = response.choices[0].message.content.strip()
 
         return ChatResponse(
-            conversation_id=response.id,
             message=generated_message
         )
         
     except Exception as e:
         print(f"Error generating chat response: {e}")
         return ChatResponse(
-            conversation_id=response.id,
             message="I apologize, but I'm having trouble generating a response right now. Please try again."
             )
 
