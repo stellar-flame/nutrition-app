@@ -64,7 +64,8 @@ const ChatOverlay: React.FC<ChatOverlayProps> = ({
    // For handling food input and conversation
   const handleFoodInput = async (input: string) => {
     setLoading(true);
-
+    setPendingMeals([]);
+    
     try {
       const { data: result } = await api.post("/openai/chat", {
         user_id: user?.uid, // Dynamic user ID
@@ -90,11 +91,6 @@ const ChatOverlay: React.FC<ChatOverlayProps> = ({
       }
       if (result.meals && result.meals.length > 0) {
         console.log("Meals found:", result.meals.length);
-        
-        // Clear any existing single pending meal since we have multiple meals now
-        if (pendingMeal) {
-          cancelMeal(true); // Keep history but clear the single meal
-        }
         
         // Create a selection state for all meals (all selected by default)
         const mealsWithSelection = result.meals.map((meal: any, index: number) => ({

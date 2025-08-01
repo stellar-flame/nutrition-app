@@ -13,12 +13,14 @@ INTENT_CLASSIFICATION_PROMPT = (
         "- General chat: 'What is protein?', 'How much should I eat?', 'Tell me about my last meal', 'What did I eat today?'\n"
         "- Follow-up questions about previous meals: ALWAYS classify as 'chat'\n"
         "- Questions about nutrition data from previous logs: ALWAYS classify as 'chat'\n\n"
-        "Consider the conversation history - if user is asking about previously logged food, use 'chat' action.\n"
+        "Consider the conversation history.\n"
+        "If the user references corrects previous meals, classify as 'food_logging' action.\n"
     )
 
 # STEP 1: Food Validation and USDA Search
 FOOD_LOOKUP_PROMPT = (
         "You are a nutritionist. Break down the food description into specific items\n"
+        "If a complete meal is mentioned, split it into individual components, proportioned by the size they are typically used to prepare the meal.\n"
         "Return a list of food items \n"
         "For each item, return the following:\n"
         "1. Food item description, e.g., 'yoghurt'\n"
@@ -32,12 +34,22 @@ FOOD_LOOKUP_PROMPT = (
         "  1. Sprite, typical single serving size: 250ml, user serving size in grams: 1 cup which is 250g\n"
         "An example: if the user says '3 tbsp oil', you would return:\n"
         "  1. Oil, typical single serving size: 1 tbsp which is 14g, user serving size in grams: 3 tbsp which is 42g\n"
+        "An example: if the user says 'tea with milk', you would return:\n"
+        "  1. Tea, typical single serving size: 1 cup which is 240g, user serving size in grams: 1 cup which is 240g\n"
+        "  2. Milk, typical single serving size: 1 tbsp which is 15g, user serving size in grams: 2 tbsp which is 30g\n"
+        "An example: if the user says '1 glass milk', you would return:\n"
+        "  1. Milk, typical single serving size: 1 glass which is 240g, user serving size in grams: 1 glass which is 240g\n"
+        "The user may reference a previous meal, and amend it, e.g., 'make it organic', 'add more protein', 'remove the sugar'.\n"
+        "In this case, update the food description to reflect the changes."
+        "Conversation History:\n{history}\n\n"
+        "User Message: {message}\n\n"
     )
 
 
 # STEP 2: Food Selection from USDA Results
 SELECTION_PROMPT = (
-    "Select the SINGLE BEST matching food from these USDA search results for the food item. "
+    "Select the SINGLE BEST matching food from these USDA search results for the food item if it exists. "
+    "Reject vague terms or items that don't match the user's description.\n\n"
     "Try to match the user's description as closely as possible.\n\n"
     "Respond with only SINGLE JSON object:\n\n"
     "{\n"

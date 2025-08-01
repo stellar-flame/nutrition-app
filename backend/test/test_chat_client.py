@@ -22,8 +22,8 @@ from database.schemas import ChatRequest, ChatResponse
 
 class ChatClient:
     def __init__(self):
-        self.conversation_id: Optional[str] = None
-    
+        self.history: Optional[list] = None
+
     async def chat(self, description: str) -> dict:
         """Send a chat message to the API"""
    
@@ -32,7 +32,7 @@ class ChatClient:
             request = ChatRequest(
                 description=description,
                 user_id="test_user",
-                conversation_id=self.conversation_id
+                history=self.history
             )
             
             # Call the endpoint
@@ -41,7 +41,6 @@ class ChatClient:
 
             # Print response
             print("✅ Response received:")
-            self.conversation_id = response.conversation_id
             return response
 
         except Exception as e:
@@ -106,14 +105,15 @@ async def interactive_mode():
                 break
             
             if user_input.lower() == 'reset':
-                client.conversation_id = None
                 print("🔄 Conversation reset\n")
+                client.history = []
                 continue
             
             if not user_input:
                 continue
 
             response = await client.chat(user_input)
+            client.history = response.history or []
             client.print_response(response)
             
         except KeyboardInterrupt:

@@ -1,29 +1,30 @@
 """
 OpenAI helper functions and utilities for the nutrition app.
 """
-from typing import Union
 from openai import OpenAI
 from database.schemas import ChatResponse
 import re
-import json
 
 
-async def create_openai_response(client: OpenAI, model: str, input_content, instructions: str, 
-                                prev_response_id: str = None, tools: list = None) -> object:
+async def create_openai_response(client: OpenAI, model: str, messages, instructions: str,  tools: list = None) -> object:
     """Standardized OpenAI response creation"""
+    
+    # Create the system message with instructions
+    system_message = {"role": "system", "content": instructions}
+    
+    # Combine system message with user messages
+    all_messages = [system_message] + (messages if isinstance(messages, list) else [messages])
+    
     params = {
         "model": model,
-        "input": input_content,
-        "instructions": instructions
+        "messages": all_messages
     }
     
-    if prev_response_id:
-        params["previous_response_id"] = prev_response_id
     if tools:
         params["tools"] = tools
         params["tool_choice"] = "auto"
-    
-    return client.responses.create(**params)
+
+    return client.chat.completions.create(**params)
 
 
 def create_error_response(message: str, conversation_id: str) -> ChatResponse:
@@ -36,8 +37,8 @@ def create_error_response(message: str, conversation_id: str) -> ChatResponse:
 
 def extract_response_text(response) -> str:
     """Extract and clean text from OpenAI response"""
-    if response.output and response.output[0].content:
-        return response.output[0].content[0].text.strip()
+    if hasattr(response, 'choices') and response.choices:
+        return response.choices[0].message.content.strip()
     return ""
 
 

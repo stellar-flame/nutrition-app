@@ -33,7 +33,7 @@ async def lookup_usda_nutrition(food_description: str) -> dict:
     """Look up nutrition data from USDA FoodData Central"""
     try:
         # Get multiple search results for OpenAI to choose from
-        foods = await usda_client.search_food(food_description, page_size=10)
+        foods = await usda_client.search_food(food_description, page_size=20)
         if foods:
             # Format the search results for OpenAI to analyze
             formatted_results = []
@@ -74,14 +74,13 @@ async def get_usda_nutrition_details(fdc_id: str) -> dict:
 
 
 
-async def food_lookup(client: OpenAI, description: str) -> ChatResponse:
-    
+async def food_lookup(client: OpenAI, request: ChatRequest) -> ChatResponse:
+    chat_prompt = build_chat_prompt(request, FOOD_LOOKUP_PROMPT)
+
     response = client.responses.parse(
-        model="gpt-4o-mini",  
-        input=[
-            {"role": "system", "content": FOOD_LOOKUP_PROMPT},
-            {"role": "user", "content": description}
-        ],
+        model="gpt-4o-mini",
+        input=[{"role": "user", "content": chat_prompt}],
+        temperature=0.3,
         text_format=FoodItemList,
     )
 
@@ -96,9 +95,7 @@ async def food_lookup(client: OpenAI, description: str) -> ChatResponse:
     meal_results = []
     errors = []
     for item in food_items:
-        print(f"Processing food item: {item}")
         usda_result = await lookup_usda_nutrition(item.description)
-        print(f"USDA search result for {item.description}: {usda_result.get('count')} results found")
         nutritional_estimate = None
         if (usda_result.get("success")):
             results_text = f"Result for Food Item: {item.description}:\n"
@@ -114,7 +111,6 @@ async def food_lookup(client: OpenAI, description: str) -> ChatResponse:
             )
             response_text = extract_response_text(response)
             clean_text = clean_json_text(response_text)
-            print(f"Response text for {item.description}: {clean_text}")
             selected_item = json.loads(clean_text)
             fdc_id = selected_item.get("id", "none") if not isinstance(selected_item, list) else selected_item[0].get("id", "none") 
             nutrition_result = await get_usda_nutrition_details(fdc_id)
@@ -150,8 +146,6 @@ async def food_lookup(client: OpenAI, description: str) -> ChatResponse:
         else:
             errors.append(f"Could not estimate nutrition for {item.description}")
 
-    print(f"Final result for {description}: {meal_results}")
-    print(f"Errors encountered: {errors}")
     return ChatResponse(
         conversation_id=response.id,
         message="Nutrition lookup completed",
@@ -191,45 +185,52 @@ def get_value_per_serving_size(value: int, user_serving_size: int) -> int:
         return 0.0
     return round(value / 100 * user_serving_size,2)
 
-
-async def chat_action(request: ChatRequest, client: OpenAI) -> ChatResponse:
-     # Generate a proper chat response using conversation history
-       
-        
-        # Format conversation history
-        history_text = ""
+def build_chat_prompt(request: ChatRequest, prompt: str) -> str:
+    """Build chat prompt from request history and description"""
+    
+    # Format conversation history
+    history_text = ""
+    if request.history:
         for msg in request.history:
             if msg["role"] == "user":
                 history_text += f"User: {msg['content']}\n"
             elif msg["role"] == "assistant":
                 history_text += f"Assistant: {msg['content']}\n"
+    
+    # Build the chat prompt
+    chat_prompt = prompt.format(
+        history=history_text if history_text else "No previous conversation.",
+        message=request.description
+    )
+    
+    return chat_prompt
+
+
+async def chat_action(client: OpenAI, request: ChatRequest) -> ChatResponse:
+    # Generate a proper chat response using conversation history
+    chat_prompt = build_chat_prompt(request, CHAT_RESPONSE_PROMPT)
+
+    # Generate chat response using LLM
+    try:      
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": chat_prompt}],
+            temperature=0.3,
+            max_tokens=500
+        )
+
+        generated_message = response.choices[0].message.content.strip()
+
+        return ChatResponse(
+            conversation_id=response.id,
+            message=generated_message
+        )
         
-        # Generate chat response using LLM
-        try:
-            chat_prompt = CHAT_RESPONSE_PROMPT.format(
-                history=history_text if history_text else "No previous conversation.",
-                message=request.description
-            )
-
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": chat_prompt}],
-                temperature=0.3,
-                max_tokens=500
-            )
-
-            generated_message = response.choices[0].message.content.strip()
-
-            return ChatResponse(
-                conversation_id=response.id,
-                message=generated_message
-            )
-            
-        except Exception as e:
-            print(f"Error generating chat response: {e}")
-            return ChatResponse(
-                conversation_id=response.id,
-                message="I apologize, but I'm having trouble generating a response right now. Please try again."
+    except Exception as e:
+        print(f"Error generating chat response: {e}")
+        return ChatResponse(
+            conversation_id=response.id,
+            message="I apologize, but I'm having trouble generating a response right now. Please try again."
             )
 
 @router.post("/openai/chat", response_model=ChatResponse)
@@ -240,7 +241,6 @@ async def openai_chat(request: ChatRequest):
     
     client = OpenAI(api_key=openai_api_key)
 
-    
     input_content = (
         "User says or asks the following: \n"
         f"{request.description}\n\n"
@@ -257,16 +257,22 @@ async def openai_chat(request: ChatRequest):
 
     response_text = extract_response_text(response)
     response_text = clean_json_text(response_text)  
-    print(f"OpenAI response \n: {repr(response_text)}")
     action_data = json.loads(response_text)
     action = action_data.get("action")
     
+    request.history = request.history or []
+    request.history.append({
+        "role": "assistant",
+        "content": response_text,
+        "timestamp": datetime.now().isoformat()
+    })
+
     chat_response = None
 
     if action == "food_lookup":
-        chat_response = await food_lookup(client, request.description)
+        chat_response = await food_lookup(client, request)
     elif action == "chat":
-        chat_response = await chat_action(request, client)
+        chat_response = await chat_action(client, request)
 
         
     # Append assistant response to conversation context
@@ -276,15 +282,13 @@ async def openai_chat(request: ChatRequest):
         for meal in chat_response.meals:
             meal_summary.append(f"{meal.get('description')} ({meal})")
 
-        assistant_content = f"Logged foods: {', '.join(meal_summary)}"
+        assistant_content = f"Meals assistant found to log: {', '.join(meal_summary)}"
         if chat_response.message:
             assistant_content += f" - {chat_response.message}"
 
     else:
         # Chat response
         assistant_content = chat_response.message if chat_response.message else "No response provided"
-    
-    print(f"Assistant content: {assistant_content}")
     
   
     chat_response.history.append({
@@ -297,7 +301,6 @@ async def openai_chat(request: ChatRequest):
         "content": assistant_content,
         "timestamp": datetime.now().isoformat()
     })
-    print(f"Chat response : {chat_response}")
     return chat_response
 
 
