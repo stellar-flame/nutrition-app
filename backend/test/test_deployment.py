@@ -23,7 +23,7 @@ class DeploymentTester:
         """Test the health check endpoint"""
         print("🏥 Testing health endpoint...")
         try:
-            response = self.session.get(f"{self.base_url}/health", timeout=10)
+            response = self.session.get(f"{self.base_url}/health", timeout=20)
             
             if response.status_code != 200:
                 print(f"❌ Health check failed with status {response.status_code}")

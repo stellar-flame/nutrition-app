@@ -1,7 +1,10 @@
+import re
+from xxlimited import foo
 from fastapi import APIRouter, HTTPException
 from openai import OpenAI
 from datetime import datetime
 import json
+import asyncio
 from dotenv import load_dotenv
 from database.schemas import ChatRequest, ChatResponse, FoodItem, FoodItemList
 from client.usda_client import USDAClient
@@ -74,6 +77,7 @@ async def get_usda_nutrition_details(fdc_id: str) -> dict:
 
 
 
+import time
 async def food_lookup(client: OpenAI, request: ChatRequest) -> ChatResponse:
     chat_prompt = build_chat_prompt(request, FOOD_LOOKUP_PROMPT)
 
@@ -93,62 +97,85 @@ async def food_lookup(client: OpenAI, request: ChatRequest) -> ChatResponse:
 
     meal_results = []
     errors = []
-    for item in food_items:
-        usda_result = await lookup_usda_nutrition(item.description)
-        nutritional_estimate = None
-        if (usda_result.get("success")):
-            results_text = f"Result for Food Item: {item.description}:\n"
-            for i, result in enumerate(usda_result.get("search_results", []), 1):
-                results_text += f"{i}. {result['description']} (FDC ID: {result['fdc_id']})\n"
-            
-            response = await create_openai_response(
-                client,
-                "gpt-4o-mini",
-                [{"role": "user", "content": f"User requested nutritional for: {item.description}, USDA returned {results_text}\n"}],
-                SELECTION_PROMPT
-            )
+    
+    tasks = [
+        process_single_food_item(client, item) for item in food_items
+    ]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            response_text = extract_response_text(response)
-            clean_text = clean_json_text(response_text)
-            selected_item = json.loads(clean_text)
-            fdc_id = selected_item.get("id", "none") if not isinstance(selected_item, list) else selected_item[0].get("id", "none") 
-            nutrition_result = await get_usda_nutrition_details(fdc_id)
-
-            if nutrition_result.get("success"):
-                nutrition_data = filter_usda_json(nutrition_result["nutrition_data"])
-                input_content = (
-                    "USDA returned nutritional estimate for: \n"
-                    f"{fdc_id}\n\nUSDA JSON:\n{json.dumps(nutrition_data, indent=2)}"
-                )
-                response = await create_openai_response(
-                    client, "gpt-4o-mini",
-                    [{"role": "user", "content": input_content}],
-                    USDA_EXTRACTION_PROMPT                )
-                response_text = extract_response_text(response)
-                clean_text = clean_json_text(response_text)
-                nutritional_estimate = extract_nutrition_estimate(clean_text, item)
-
-        if nutritional_estimate is None:
-            item_lookup = f"Lookup nutrition for {item.user_serving_size}g {item.description}"
-            print(f"LLM Processing for {item_lookup}")
-            response = await create_openai_response(
-                client, "gpt-4o-mini",
-                [{"role": "user", "content": item_lookup}],
-                LLM_ESTIMATION_PROMPT
-            )
-            response_text = extract_response_text(response)
-            nutritional_estimate = extract_nutrition_estimate(response_text, item)
-
-        if nutritional_estimate is not None:
-            meal_results.append(nutritional_estimate)
-        else:
-            errors.append(f"Could not estimate nutrition for {item.description}")
+    for result in results:
+        if isinstance(result, dict):
+            if "nutrition" in result:
+                meal_results.append(result["nutrition"])
+            if "error" in result:
+                errors.append(result["error"])
 
     return ChatResponse(
         message="Nutrition lookup completed",
         meals=meal_results,
         errors=errors
     )
+
+async def process_single_food_item(client: OpenAI, item: FoodItem) -> dict:
+    result = await try_usda_food_lookup(client, item)
+    if result:
+        return result
+    else:
+        return await try_llm_food_lookup(client, item)
+        
+
+async def try_llm_food_lookup(client: OpenAI, item: FoodItem) -> ChatResponse:
+    item_lookup = f"Lookup nutrition for {item.user_serving_size}g {item.description}"
+    print(f"LLM Processing for {item_lookup}")
+    response = await create_openai_response(
+        client, "gpt-4o-mini",
+        [{"role": "user", "content": item_lookup}],
+        LLM_ESTIMATION_PROMPT
+    )
+    response_text = extract_response_text(response)
+    nutritional_estimate = extract_nutrition_estimate(response_text, item)
+    if (nutritional_estimate is not None):
+        return {"nutrition": nutritional_estimate}
+    else:
+        return {"error": f"Could not estimate nutrition for {item.description}"}
+
+
+async def try_usda_food_lookup(client: OpenAI, item: FoodItem) -> dict | None:
+    usda_result = await lookup_usda_nutrition(item.description)
+    if (usda_result.get("success")):
+        results_text = f"Result for Food Item: {item.description}:\n"
+        for i, result in enumerate(usda_result.get("search_results", []), 1):
+            results_text += f"{i}. {result['description']} (FDC ID: {result['fdc_id']})\n"
+        
+        response = await create_openai_response(
+            client,
+            "gpt-4o-mini",
+            [{"role": "user", "content": f"User requested nutritional for: {item.description}, USDA returned {results_text}\n"}],
+            SELECTION_PROMPT
+        )
+        response_text = extract_response_text(response)
+        clean_text = clean_json_text(response_text)
+        selected_item = json.loads(clean_text)
+        fdc_id = selected_item.get("id", "none") if not isinstance(selected_item, list) else selected_item[0].get("id", "none") 
+        nutrition_result = await get_usda_nutrition_details(fdc_id)
+
+        if nutrition_result.get("success"):
+            nutrition_data = filter_usda_json(nutrition_result["nutrition_data"])
+            input_content = (
+                "USDA returned nutritional estimate for: \n"
+                f"{fdc_id}\n\nUSDA JSON:\n{json.dumps(nutrition_data, indent=2)}"
+            )
+            response = await create_openai_response(
+                client, "gpt-4o-mini",
+                [{"role": "user", "content": input_content}],
+                USDA_EXTRACTION_PROMPT)
+
+            response_text = extract_response_text(response)
+            nutritional_estimate = extract_nutrition_estimate(response_text, item)
+            if (nutritional_estimate is not None):
+                return {"nutrition": nutritional_estimate}
+        
+    return None
 
 def extract_nutrition_estimate(response_text: str, item: FoodItem) -> dict | None:
     # # Clean up markdown code blocks
@@ -174,6 +201,11 @@ def extract_nutrition_estimate(response_text: str, item: FoodItem) -> dict | Non
             "assumptions": meal_data.get("assumptions", None)
         }
         return nutrition_estimate
+    elif meal_data.get("intent") == "chat":
+        return {
+            "id": None,
+            "message": meal_data.get("message", ""),
+        }
     else:
         return None
 

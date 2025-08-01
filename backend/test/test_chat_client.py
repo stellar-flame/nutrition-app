@@ -83,7 +83,12 @@ class ChatClient:
                 print(f"    🧮 Quantity: {meal.get('quantity', 'N/A')}")
                 if meal.get('assumptions'):
                     print(f"    💭 Assumptions: {meal['assumptions']}")
-        
+
+        if response.errors:
+            print(f"📝 Errors found:")
+            for error in response.errors:
+                print(f"   - {error}")
+
         print("="*50 + "\n")
 
 async def interactive_mode():

@@ -23,8 +23,9 @@ class USDAClient:
             raise ValueError("USDA API key not available")
         return api_key
     
-    async def search_food(self, query: str, page_size: int = 100) -> List[Dict]:
+    async def search_food(self, query: str, page_size: int = 10) -> List[Dict]:
         """Search for foods in USDA database"""
+       
         try:
             api_key = self._get_api_key()
             async with httpx.AsyncClient() as client:
@@ -36,7 +37,7 @@ class USDAClient:
                         "pageSize": page_size,
                         "dataType": ["Foundation", "SR Legacy"]  # High quality data
                     },
-                    timeout=10.0
+                    timeout=5.0
                 )
                 
                 if response.status_code == 200:
@@ -58,9 +59,9 @@ class USDAClient:
                 response = await client.get(
                     f"{self.base_url}/food/{fdc_id}",
                     params={"api_key": api_key},
-                    timeout=10.0
+                    timeout=5.0
                 )
-                
+
                 if response.status_code == 200:
                     return response.json()
                 else:
